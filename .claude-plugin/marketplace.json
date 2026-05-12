@@ -42,6 +42,18 @@
         "autonomous",
         "skills"
       ]
+    },
+    {
+      "name": "meta-react",
+      "source": "./plugins/meta-react",
+      "description": "Scaffold React-project conventions: APM yml template, path-mapping / frontmatter-transform / install-workflow references, react-components rules, plus nested skills",
+      "category": "agentic",
+      "tags": [
+        "react",
+        "scaffolder",
+        "conventions",
+        "skills"
+      ]
     }
   ]
 }
