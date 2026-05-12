@@ -30,6 +30,18 @@
         "bootstrap",
         "skills"
       ]
+    },
+    {
+      "name": "meta-ralph",
+      "source": "./plugins/meta-ralph",
+      "description": "Scaffold ralph autonomous coding loops with PRD-driven user stories, driver-agent contract, and multi-runtime drivers (sh/ts/js/py)",
+      "category": "agentic",
+      "tags": [
+        "ralph",
+        "scaffolder",
+        "autonomous",
+        "skills"
+      ]
     }
   ]
 }
