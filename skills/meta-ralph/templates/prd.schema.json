@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://meta-ralph/prd.schema.json",
+  "title": "meta-ralph PRD",
+  "description": "Schema for prd.json files produced by the meta-ralph SKILL. See docs/meta-ralph-spec.md §6 for field semantics and the §7 Driver-Agent contract for how status transitions are validated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "branchName", "description", "userStories"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project name; usually inferred from package.json name or cwd basename."
+    },
+    "branchName": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9/_-]+$",
+      "description": "Git branch ralph operates on. Suggested form: 'ralph/<feature-slug>'."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-paragraph description of what this PRD aims to build."
+    },
+    "userStories": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of stories the agent works through. Lower priority value = higher priority.",
+      "items": { "$ref": "#/definitions/userStory" }
+    }
+  },
+  "definitions": {
+    "userStory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "acceptanceCriteria", "priority", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^US-\\d{3,}$",
+          "description": "Stable identifier; convention is US-001, US-002, ..."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Lower = higher priority. Agent picks lowest priority story whose status is todo or in_progress."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["todo", "in_progress", "passed", "blocked"],
+          "description": "Lifecycle: todo -> in_progress -> passed (terminal) | blocked (needs user). The Driver-Agent contract (spec §7) requires at most one in_progress at a time."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes the agent appends per-story (gotchas, blocker reasons). Optional, defaults to ''."
+        }
+      }
+    }
+  }
+}
