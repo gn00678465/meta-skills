@@ -1,0 +1,11 @@
+name: <project-name>
+version: 1.0.0
+description: React project scaffolded with meta-react
+targets:
+  - claude
+  - copilot
+  - agent-skills
+dependencies:
+  apm:
+    - vercel-labs/agent-skills/skills/react-best-practices
+  mcp: []
