@@ -1,27 +1,32 @@
 # meta-skills
 
-A Claude Code plugin marketplace that ships **meta-skills** — skills that scaffold *other* agentic workflows, rather than running them.
+A Claude Code plugin marketplace that ships **meta-skills** — skills that scaffold *other* agentic workflows, rather than running them. Each skill is published as its own plugin, so you can install only what you need.
 
-## Skills
+## Plugins
 
-| Skill | Summary | Docs |
+| Plugin | Summary | Docs |
 |---|---|---|
-| `meta-bootstrap-docs` | Scaffolds `CLAUDE.md` / `AGENTS.md` (and Karpathy-style guidelines) into a target repo so new projects start with a coherent agent-instruction baseline. | [SKILL.md](skills/meta-bootstrap-docs/SKILL.md) |
-| `meta-ralph` | Scaffolds a [ralph](https://ghuntley.com/ralph/) autonomous coding loop (`prd.json` + `.ralph/*`) into a target git repo. Pure scaffolder; never executes the loop. | [docs/meta-ralph.md](docs/meta-ralph.md) · [SKILL.md](skills/meta-ralph/SKILL.md) |
-| `meta-react` | Scaffolds React-project conventions: APM `apm.yml` template, path-mapping / frontmatter-transform / install-workflow references, `react-components` rules, plus nested skills (e.g. `no-use-effect`). | [SKILL.md](skills/meta-react/SKILL.md) |
+| `meta-bootstrap-docs` | Scaffolds `CLAUDE.md` / `AGENTS.md` (and Karpathy-style guidelines) into a target repo so new projects start with a coherent agent-instruction baseline. | [SKILL.md](plugins/meta-bootstrap-docs/skills/meta-bootstrap-docs/SKILL.md) |
+| `meta-ralph` | Scaffolds a [ralph](https://ghuntley.com/ralph/) autonomous coding loop (`prd.json` + `.ralph/*`) into a target git repo. Pure scaffolder; never executes the loop. | [docs/meta-ralph.md](plugins/meta-ralph/docs/meta-ralph.md) · [SKILL.md](plugins/meta-ralph/skills/meta-ralph/SKILL.md) |
+| `meta-react` | Scaffolds React-project conventions: APM `apm.yml` template, path-mapping / frontmatter-transform / install-workflow references, `react-components` rules, plus nested skills (e.g. `no-use-effect`). | [SKILL.md](plugins/meta-react/skills/meta-react/SKILL.md) |
 
 ## Install
 
+Add the marketplace once, then install whichever plugins you want:
+
 ```sh
 /plugin marketplace add gn00678465/meta-skills
-/plugin install meta-skills@meta-skills
+
+/plugin install meta-bootstrap-docs@meta-skills
+/plugin install meta-ralph@meta-skills
+/plugin install meta-react@meta-skills
 ```
 
 Local testing:
 
 ```sh
 /plugin marketplace add ./path/to/meta-skills
-/plugin install meta-skills@meta-skills
+/plugin install meta-ralph@meta-skills
 ```
 
 ## Repo layout
@@ -29,14 +34,18 @@ Local testing:
 ```
 meta-skills/
 ├── .claude-plugin/
-│   ├── marketplace.json       (single-plugin marketplace; source: "./")
-│   └── plugin.json            (plugin manifest)
-├── docs/
-│   └── meta-ralph.md          (design + usage notes for meta-ralph)
-└── skills/
-    ├── meta-bootstrap-docs/   (CLAUDE.md / AGENTS.md scaffolder)
-    ├── meta-ralph/            (ralph autonomous-loop scaffolder)
-    └── meta-react/            (React conventions scaffolder)
+│   └── marketplace.json                 (multi-plugin marketplace)
+└── plugins/
+    ├── meta-bootstrap-docs/
+    │   ├── .claude-plugin/plugin.json
+    │   └── skills/meta-bootstrap-docs/  (CLAUDE.md / AGENTS.md scaffolder)
+    ├── meta-ralph/
+    │   ├── .claude-plugin/plugin.json
+    │   ├── docs/meta-ralph.md           (design + usage notes)
+    │   └── skills/meta-ralph/           (ralph autonomous-loop scaffolder)
+    └── meta-react/
+        ├── .claude-plugin/plugin.json
+        └── skills/meta-react/           (React conventions scaffolder)
 ```
 
 ## Further reading
@@ -45,4 +54,4 @@ meta-skills/
 
 ## License
 
-MIT — see the `license` field in `.claude-plugin/plugin.json`.
+MIT — see the `license` field in each plugin's `.claude-plugin/plugin.json`.
