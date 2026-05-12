@@ -1,0 +1,18 @@
+{
+  "name": "meta-skills",
+  "version": "0.1.0",
+  "description": "Scaffold ralph autonomous coding loops with PRD-driven user stories, driver-agent contract, and multi-runtime drivers (sh/ts/js/py)",
+  "author": {
+    "name": "Madao",
+    "email": "gn00678465@gmail.com"
+  },
+  "homepage": "https://github.com/gn00678465/meta-skills",
+  "repository": "https://github.com/gn00678465/meta-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "ralph",
+    "scaffolder",
+    "agentic"
+  ]
+}
