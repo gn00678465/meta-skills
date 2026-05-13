@@ -23,7 +23,15 @@ You are an autonomous coding agent iterating on a software project. The driver s
    Multi-category story → pick the dominant one. Genuinely ambiguous → default to `feat`.
 
    Then update PRD: set the story's `status` to `passed`. **The driver requires every `todo|in_progress → passed` transition to be accompanied by a new, non-empty, story-relevant git commit. Don't flip without committing; don't satisfy the check with empty / unrelated commits.**
-7b. **Verify `prd.json` still parses** after the commit lands. Run the JSON-validity check that the scaffolder injected as the first bullet of "Quality Requirements" above (your runtime's `JSON.parse` one-liner). If it fails: do **not** create `.ralph/.complete`, restore `prd.json` via the parse → mutate → serialize procedure (re-applying only the `status` flip you intended), `git commit --amend` (or follow-up commit) with the same message, then exit non-zero so the driver triggers commit-failure recovery instead of advancing.
+7b. **Verify `prd.json` still parses** after the commit lands. Run the JSON-validity check that the scaffolder injected as the first bullet of "Quality Requirements" above (your runtime's `JSON.parse` one-liner). If it fails:
+
+    - Do **NOT** create `.ralph/.complete`.
+    - Inspect with `git diff HEAD~1 -- prd.json` to see how the previous commit corrupted the file.
+    - Restore `prd.json` via the parse → mutate → serialize procedure, **re-applying only the `status` flip you intended** (do not change other fields).
+    - Re-run the JSON-validity check on the restored file — it must pass before continuing.
+    - Make a **forward fix commit** (HEAD advances, working tree returns clean): `fix: <Story ID> - repair corrupted prd.json from previous commit`. Do NOT `git commit --amend` and do NOT exit non-zero: the driver's commit-failure recovery fires only on `(exit ≠ 0) ∧ (dirty tree) ∧ (HEAD didn't move)`; a successful forward fix doesn't meet that — it just leaves a clean repaired `prd.json` for the next iteration's `loadAndValidatePrd` to read. The story stays `passed` because the previous commit already set it; the fix commit only repairs the file shape.
+    - End the iteration normally (exit 0).
+    - **Only if you cannot restore** (genuinely unrecoverable state, e.g., you don't know the intended structure): leave the working tree dirty, exit non-zero, and append a clear blocker note to the story. The driver's next-iteration `loadAndValidatePrd` will halt the loop; manual intervention is required.
 8. **Append progress** to `.ralph/progress.txt` (see "Progress Report Format" below).
 9. **If you cannot proceed** on this story (missing info, external dependency you can't acquire, ambiguous requirement that needs human judgment) — set its `status` to `blocked`, append a brief blocker reason to its `notes` field, and pick the next available story instead. **Do not set `passed` for a story you didn't actually complete.**
 
