@@ -11,7 +11,7 @@ Pure scaffolder for the **ralph autonomous coding loop**. Two modes:
 - **Mode A — Bootstrap (default).** First-run scaffolding. The user describes what to build, picks agent + runtime, the SKILL writes `prd.json` + `.ralph/*`. Phases 1–4 below.
 - **Mode B — Amend (`--amend` flag).** Second invocation; user already has `prd.json` and wants to **append** new user stories. The SKILL only mutates `prd.json` and never touches `.ralph/*`. Phases B1–B4, defined under "Mode B — Amend" near the end of this file.
 
-This file is self-contained: the Driver–Agent Contract, scaffold steps, verification table, and amend flow live entirely below. User-facing usage notes are in `plugins/meta-ralph/docs/meta-ralph.md`.
+Self-contained: scaffold steps, verification, and amend flow are all below. User-facing usage notes live in `plugins/meta-ralph/docs/meta-ralph.md`.
 
 ## Constraints (non-negotiable)
 
@@ -38,12 +38,12 @@ Runtime-only files — created by the driver at run time, never written by the S
 
 ## Invocation & argument parsing
 
-The SKILL receives `$ARGUMENTS` — a Claude Code substitution variable holding the raw text the user typed after the slash-command (or trigger phrase). Parse it once, before pre-flight, into:
+`$ARGUMENTS` is a Claude Code substitution holding the raw text after the slash-command / trigger phrase. Parse once, before pre-flight, into:
 
 | Field | Rule |
 |---|---|
-| `mode` | `amend` if the token `--amend` (case-sensitive, whole-word) appears anywhere in `$ARGUMENTS`; otherwise `bootstrap`. |
-| `userPrompt` | `$ARGUMENTS` with the literal `--amend` token (and one adjacent space) stripped. May be empty. Used as a **prefill hint** only — never as authoritative content. |
+| `mode` | `amend` iff the token `--amend` (case-sensitive, whole-word) appears in `$ARGUMENTS`; else `bootstrap`. |
+| `userPrompt` | `$ARGUMENTS` with the `--amend` token (+ adjacent space) stripped. Used as a **prefill hint only**, never as authoritative content. |
 
 Examples:
 
@@ -52,26 +52,21 @@ Examples:
 | *(empty)* | `bootstrap` | *(empty)* |
 | `--amend` | `amend` | *(empty)* |
 | `--amend add login flow with OAuth + 2FA` | `amend` | `add login flow with OAuth + 2FA` |
-| `--amend story with "quoted" title and \backslash` | `amend` | `story with "quoted" title and \backslash` |
 | `init ralph for my CLI tool` | `bootstrap` | `init ralph for my CLI tool` |
 | `--AMEND should not match` | `bootstrap` | `--AMEND should not match` |
 
-**Preferred:** invoke the bundled parser script and read the single-line JSON it emits to stdout:
+**Preferred:** invoke the bundled parser, read the JSON line from stdout: `{"mode":"bootstrap"|"amend","userPrompt":"<trimmed remainder>"}`.
 
-```
-{"mode":"bootstrap"|"amend","userPrompt":"<trimmed remainder>"}
-```
-
-| Host | Tool to invoke from | Command |
+| Host | Tool | Command |
 |---|---|---|
-| POSIX (Linux / macOS / git-bash / WSL — POSIX-native paths) | Bash tool | `sh "${CLAUDE_SKILL_DIR}/scripts/parse-args.sh" "$ARGUMENTS"` |
-| Windows PowerShell (Windows-native paths) | PowerShell tool | `pwsh -NoProfile -File "${CLAUDE_SKILL_DIR}/scripts/parse-args.ps1" "$ARGUMENTS"` |
+| POSIX (Linux / macOS / git-bash / WSL) | Bash | `sh "${CLAUDE_SKILL_DIR}/scripts/parse-args.sh" "$ARGUMENTS"` |
+| Windows PowerShell | PowerShell | `pwsh -NoProfile -File "${CLAUDE_SKILL_DIR}/scripts/parse-args.ps1" "$ARGUMENTS"` |
 
-`$ARGUMENTS` MUST be wrapped in **double quotes** at the host-shell level so it arrives as a single argument; without quoting, multi-word prompts get re-tokenized and the parser sees several arguments instead of one (the script does join them again, but a stray `--` or shell metachar can leak in). Both scripts implement the same case-sensitive whole-token rule for `--amend` and the same JSON-escape contract for `userPrompt` (backslash, double-quote). See `scripts/parse-args.sh` header for the full specification.
+`$ARGUMENTS` MUST be double-quoted at the host-shell level so it arrives as a single argument (otherwise multi-word prompts get re-tokenized; stray `--` or metachars leak in). Both scripts apply identical whole-token `--amend` matching and identical JSON escaping for `userPrompt` (`\`, `"`). Full spec in `scripts/parse-args.sh` header.
 
-`${CLAUDE_SKILL_DIR}` is a Claude Code substitution variable that resolves to this skill's bundled directory. Other CC-compatible hosts (Codex, Copilot CLI when running this SKILL via plugin import) provide it too. If you must run the parser outside any CC-style host, substitute the absolute path to this skill's directory.
+`${CLAUDE_SKILL_DIR}` resolves to this skill's bundled directory (Claude Code, Codex, Copilot-via-plugin all provide it). Outside CC-style hosts, substitute the absolute path.
 
-**Fallback — POSIX only (inline, when the script is unreachable):**
+**Fallback — POSIX only (when the script is unreachable):**
 
 ```sh
 mode="bootstrap"
@@ -79,9 +74,9 @@ case " $ARGUMENTS " in *" --amend "*) mode="amend" ;; esac
 userPrompt=$(printf '%s' "$ARGUMENTS" | sed -E 's/(^| )--amend( |$)/ /g; s/^ +//; s/ +$//; s/  +/ /g')
 ```
 
-This fallback relies on POSIX `sh` / `sed` / `printf` and **MUST NOT** be used on Windows PowerShell. If `parse-args.ps1` is unreachable on a PowerShell host, abort with: *"meta-ralph requires either the bundled `scripts/parse-args.ps1` or POSIX shell access. Neither was reachable; cannot parse $ARGUMENTS safely."* Do not attempt to translate the snippet — PowerShell's `case` / `sed` semantics differ enough that a hand-port silently mis-parses edge inputs.
+This fallback **MUST NOT** run on Windows PowerShell — `case` / `sed` semantics differ and a hand-port silently mis-parses. If `parse-args.ps1` is unreachable on PowerShell, abort: *"meta-ralph requires either `scripts/parse-args.ps1` or POSIX shell access. Neither reachable; cannot parse $ARGUMENTS safely."*
 
-If `mode=amend` but no `prd.json` exists at repo root → abort early with: *"--amend requires an existing prd.json. Run meta-ralph without --amend to bootstrap first."*
+If `mode=amend` but no `prd.json` exists at repo root → abort: *"--amend requires an existing prd.json. Run meta-ralph without --amend to bootstrap first."*
 
 ## Pre-flight (before Phase 1)
 
@@ -108,47 +103,37 @@ If any of the last three are missing, `amendFeasible()` returns false → confli
 | cwd is a git repo (`git rev-parse --git-dir` succeeds) | abort | abort |
 | `prd.json` exists at repo root | (see "conflict prompt" row) | required (else abort per §Invocation) |
 | `.ralph/` directory exists | (see "conflict prompt" row) | required (else abort: scaffold first) |
-| **Conflict prompt** — `mode=bootstrap` AND (`prd.json` exists OR `.ralph/` exists) | If `.ralph/.lock` exists: refuse to prompt; abort with the lock message (see `.ralph/.lock` row below) — neither `[A]mend` nor `[O]verwrite` is safe while a driver may be running. <br>Else if `amendFeasible()`: offer 3-way prompt `[A]mend / [O]verwrite (rerun bootstrap — destroys progress) / [X]Cancel`. Pick `A` → flip mode to `amend`. Pick `O` → continue bootstrap. Pick `X` → abort. <br>Else: offer 2-way prompt `[O]verwrite / [X]Cancel`, **and tell the user the specific reason `[A]` is unavailable** (e.g. "prd.json schema-invalid", "agent token unresolved in prompt.md"). Do not silently swallow the option. | n/a |
-| `.ralph/.lock` exists | **Fresh bootstrap** (no prior `.ralph/`): n/a — no driver could be running. <br>**Overwrite bootstrap**: abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before re-running meta-ralph."* The lock means a live driver may still be iterating against the very files Phase 3 would rewrite — that corrupts running state. (See the "Conflict prompt" row above: the prompt is refused entirely when `.lock` exists, so `[O]verwrite` is never reachable; this row is the underlying reason for that gate.) | abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before amending."* |
-| Existing `prd.json` validates against `templates/prd.schema.json` | n/a | abort if invalid — refuse to amend a corrupt PRD |
-| Existing `prd.json` has at most one story with `status: in_progress` | n/a | abort — driver-agent invariant violation; user must reconcile manually |
-| Exactly one runtime file present under `.ralph/` (`ralph.sh` xor `.ts` xor `.js` xor `.py`) | n/a | abort — print which files were found and ask user to remove the spurious one(s) |
-| `.ralph/prompt.md` references exactly one memory file token (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) | n/a | abort — token unresolved (none / multiple); ask user to confirm intended agent before retrying |
+| **Conflict prompt** — `mode=bootstrap` AND (`prd.json` exists OR `.ralph/` exists) | `.ralph/.lock` exists: refuse to prompt; abort with the lock message (see row below) — neither `[A]` nor `[O]` is safe under a live driver. <br>Else if `amendFeasible()`: 3-way `[A]mend / [O]verwrite (destroys progress) / [X]Cancel`. `A` → flip to amend; `O` → continue bootstrap; `X` → abort. <br>Else: 2-way `[O]/[X]`, **and name the specific reason `[A]` is unavailable** (e.g. "prd.json schema-invalid", "agent token unresolved"). Don't silently swallow the option. | n/a |
+| `.ralph/.lock` exists | Fresh bootstrap (no prior `.ralph/`): n/a. <br>Overwrite bootstrap: abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before re-running meta-ralph."* The conflict-prompt row above refuses entirely when `.lock` exists; this row is the reason for that gate. | abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before amending."* |
+| `prd.json` validates against `templates/prd.schema.json` | n/a | abort if invalid — refuse to amend a corrupt PRD |
+| `prd.json` has ≤ 1 story with `status: in_progress` | n/a | abort — driver-agent invariant violation; user must reconcile |
+| Exactly one runtime file under `.ralph/` (`ralph.sh xor .ts xor .js xor .py`) | n/a | abort — print which files were found; ask user to remove the spurious one(s) |
+| `.ralph/prompt.md` references exactly one memory file (`CLAUDE.md / AGENTS.md / GEMINI.md`) | n/a | abort — token unresolved (none/multiple); ask user to confirm intended agent |
 
 ## Phase 1 — Tool selection
 
-Ask 2 questions, validate after each.
+Two questions, validate after each (missing-PATH is a warning, not an abort — user may install later).
 
-**Q-Agent:** which agent? `claude` / `copilot` / `gemini`
-- After answer: check `which <agent>` (or equivalent on Windows). Not in PATH → emit warning, do NOT abort (user may install later).
+**Q-Agent** — `claude` / `copilot` / `gemini`. Check PATH via POSIX `command -v <agent>` or PowerShell `Get-Command <agent> -ErrorAction SilentlyContinue`.
 
-**Q-Runtime:** which loop driver runtime? `sh` / `ts` / `js` / `py`
-- If user is on Windows AND chose `sh` → emit warning: needs git-bash or WSL; suggest switching to ts/js/py.
-- After answer: check runtime dependency in PATH:
-  - sh → `jq`, `bash`
-  - ts → `bun`
-  - js → `node`
-  - py → `uv` (or `python3`)
-- Not in PATH → emit warning, do NOT abort.
+**Q-Runtime** — `sh` / `ts` / `js` / `py`. If Windows + `sh` chosen → warn (needs git-bash or WSL; suggest ts/js/py). PATH checks per runtime: `sh → jq, bash`; `ts → bun`; `js → node`; `py → uv` (or `python3`).
 
 ## Phase 2 — Grill (PRD content)
 
 ### Pre-Q-1: Auto-detect from existing files
 
-Read whichever exist in cwd; use as **prefills** for grill answers (don't skip questions, just preload defaults):
+Read whichever of these exist; use as **prefills** for the grill (don't skip questions, just preload defaults):
 
 | File | Extracts |
 |---|---|
 | `README.md` | top-level description hint |
-| `package.json` | `project` ← `name` field; quality check commands ← `scripts.typecheck/lint/test` |
+| `package.json` | `project` ← `name`; quality checks ← `scripts.typecheck/lint/test` |
 | `pyproject.toml` | `project` ← `[project] name`; quality checks from `[tool.*]` if obvious |
 | `Cargo.toml` | `project` ← `[package] name` |
 
 ### Pre-Q-2: Existing requirements doc?
 
-Ask: "Do you have an existing requirements / spec doc you'd like me to import? (y/n)"
-- If yes → ask for path → read it → extract user stories → run Q1–Q6 to fill gaps.
-- If no → run Q1–Q6 from scratch.
+Ask "Do you have a requirements / spec doc to import? (y/n)". On `y`, take path, read, extract user stories, then run Q1–Q6 to fill gaps. On `n`, run Q1–Q6 from scratch.
 
 ### Q1–Q6 (ask one at a time, accept prefills)
 
@@ -163,7 +148,7 @@ Ask: "Do you have an existing requirements / spec doc you'd like me to import? (
 
 ### Draft + approve
 
-Synthesize the answers into a `prd.json` draft (per `templates/prd.json.example` shape). Print it. Ask: "Looks good? (y / edit)". Only proceed to Phase 3 on `y`. If edit, accept changes and re-print.
+Synthesize into a `prd.json` draft (shape per `templates/prd.json.example`). Print, ask "Looks good? (y / edit)". Only proceed to Phase 3 on `y`; on edit, accept changes and re-print.
 
 ## Phase 3 — Scaffold (file writes)
 
@@ -171,20 +156,14 @@ Inputs locked at this point: `agent`, `runtime`, approved `prd.json` content, `q
 
 ### Step 0 — Overwrite cleanup (only when conflict prompt picked `[O]`)
 
-When pre-flight's conflict prompt resolved to `[O]verwrite`, prior bootstrap state may include managed files that the upcoming writes won't replace. Without cleanup, leftovers violate `amendFeasible()`'s "exactly one runtime file present" invariant and prevent future amend mode from working.
+When `[O]verwrite` was chosen, prior state may include managed files the upcoming writes won't replace; leftovers break `amendFeasible()`'s "exactly one runtime file" invariant.
 
-Before any Phase 3 write, run this cleanup. Treat "file does not exist" (ENOENT) as a successful no-op — fresh-runtime overwrite legitimately deletes drivers that were never there. Only abort if a deletion fails for some other reason (e.g. permissions, locked file, I/O error), with the failing path **before** writing new files — no partial state:
+Before any write, run cleanup. Treat ENOENT (file not found) as a no-op — fresh-runtime overwrite legitimately drops drivers that were never there. Abort only on real failures (permissions / locked / I/O), with the failing path, **before** any new write:
 
-1. Delete every managed runtime driver under `.ralph/` **except** the one matching the chosen `runtime`. Targets:
-   - `.ralph/ralph.sh`
-   - `.ralph/ralph.ts`
-   - `.ralph/ralph.js`
-   - `.ralph/ralph.py`
-2. Reconcile `.ralph/package.json` with the chosen `runtime`:
-   - `runtime == js` → leave for step 9 below to (re)write.
-   - `runtime != js` → delete `.ralph/package.json` if present (stale CommonJS pin from a prior js scaffold).
-3. Leave `prd.json`, `.ralph/prompt.md`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt` in place — the upcoming writes overwrite them deterministically.
-4. Never touch runtime-only files (`.ralph/.lock`, `.ralph/.complete`, `.ralph/.commit-failure`, `.ralph/.stop`) — those are not the SKILL's to manage.
+1. Under `.ralph/`, delete every `ralph.{sh,ts,js,py}` **except** the one matching the chosen `runtime`.
+2. `.ralph/package.json`: keep for `runtime == js` (step 9 will rewrite); delete otherwise (stale CommonJS pin).
+3. Leave `prd.json`, `.ralph/prompt.md`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt` in place — upcoming writes overwrite deterministically.
+4. Never touch `.ralph/.lock|.complete|.commit-failure|.stop` (runtime-only, not the SKILL's).
 
 Skip Step 0 entirely on a fresh scaffold (no prior `prd.json` AND no prior `.ralph/`).
 
@@ -203,60 +182,49 @@ Render in this order:
      | js | `node -e "JSON.parse(require('fs').readFileSync('prd.json','utf8'))"` |
      | py | `python -c "import json; json.load(open('prd.json'))"` |
 
-     Rationale: agent corruption of `prd.json` via text-level edits (sed / regex) is a known failure mode that halts the loop next iteration. The injected check guarantees `prd.json` validity is gated by quality checks the agent cannot skip without explicitly disabling them. The agent's step 7b re-parse uses the same command.
+     Rationale: text-level edits to `prd.json` (sed / regex) are a known agent-failure mode that halts the loop next iteration. Prepending this check makes `prd.json` validity a quality gate the agent can't skip; step 7b in the rendered prompt.md re-runs the same command after commit.
 
-     Example (ts runtime, user Q4 = `bun run typecheck`, `bun test`, `bun run lint`):
-     ```
-     - `bun -e "JSON.parse(require('fs').readFileSync('prd.json','utf8'))"`
-     - `bun run typecheck`
-     - `bun test`
-     - `bun run lint`
-     ```
 2. **Render `ralph.<ext>`** from `templates/ralph/ralph.<ext>.tpl`:
-   - For `sh`: replace `{{AGENT_CLI}}` with the agent's `shellForm`.
-   - For `ts` / `js` / `py`: replace `{{AGENT_ARGV}}` with the agent's `argv` array (with `PROMPT` as a bare identifier — the runtime reads `.ralph/prompt.md` and binds it).
+   - `sh`: replace `{{AGENT_CLI}}` with the agent's `shellForm`.
+   - `ts` / `js` / `py`: replace `{{AGENT_ARGV}}` with the agent's `argv` array (`PROMPT` stays as a bare identifier — the runtime reads `.ralph/prompt.md` and binds it).
 3. **Write `prd.json`** to repo root.
-4. **Create `.ralph/`** if missing (plain `mkdir`, not recursive — though here recursive is fine since `.ralph/` is a single level).
+4. **Create `.ralph/`** if missing.
 5. **Write `.ralph/prompt.md`** (rendered step 1).
-6. **Write `.ralph/ralph.<ext>`** (rendered step 2). Force LF. `chmod +x` on Unix; on Windows the executable bit isn't meaningful but ts/js/py are run via interpreter anyway.
-7. **Write `.ralph/progress.txt`** with single line: `## Codebase Patterns\n`.
-8. **Render `.ralph/RUNBOOK.md`** from `templates/RUNBOOK.md.tpl`:
-   - Replace `{{RUN_COMMAND}}` (multiple occurrences) with the runtime's `runtimeCmd` from the **Runtime Command Table** in this SKILL's closing-message section, *without* the `[N]` argument suffix (so `bun run .ralph/ralph.ts`, not `bun run .ralph/ralph.ts [N]`). The runbook adds `N` itself in context.
-   - Use LF line endings.
-9. **(Conditional, runtime=js only)** Write `.ralph/package.json` with `{"type": "commonjs"}\n`. Reason: `.ralph/ralph.js` uses CommonJS `require()`; if the parent project's `package.json` declares `"type": "module"`, Node will misinterpret the file. The `.ralph/package.json` is the closest one to the script, so it wins. Skip this step for sh/ts/py runtimes.
-10. **Append to `.gitignore`** (create if absent):
-   ```
-   # ralph runtime files
-   .ralph/progress.txt
-   .ralph/.lock
-   .ralph/.complete
-   .ralph/.commit-failure
-   .ralph/.stop
-   ```
-   If `.gitignore` already contains these lines, skip — don't duplicate. Notes: `.commit-failure` is the commit-repair sentinel — the driver writes it on commit failure, the agent deletes it after successful repair, so it's runtime-only and never tracked. `.stop` is the graceful-stop sentinel — the user touches it from another terminal to make the driver exit cleanly after the current iteration.
+6. **Write `.ralph/ralph.<ext>`** (rendered step 2). Force LF. `chmod +x` on Unix (no-op on Windows; ts/js/py run via interpreter regardless).
+7. **Write `.ralph/progress.txt`** with single line `## Codebase Patterns\n`.
+8. **Render `.ralph/RUNBOOK.md`** from `templates/RUNBOOK.md.tpl`. Replace `{{RUN_COMMAND}}` with the runtime's `runtimeCmd` from the **Runtime Command Table**, *without* the `[N]` suffix (runbook adds `N` in context). LF endings.
+9. **(runtime=js only)** Write `.ralph/package.json` with `{"type": "commonjs"}\n`. Reason: `.ralph/ralph.js` uses CommonJS `require()`; a parent `"type":"module"` would misinterpret it, but the closer `.ralph/package.json` wins.
+10. **Append to `.gitignore`** (create if absent; skip if these lines already present):
+    ```
+    # ralph runtime files
+    .ralph/progress.txt
+    .ralph/.lock
+    .ralph/.complete
+    .ralph/.commit-failure
+    .ralph/.stop
+    ```
+    `.commit-failure` is the commit-repair sentinel (driver writes, agent removes after repair). `.stop` is the graceful-stop sentinel (user touches to drain after current iteration). Both runtime-only.
 
 ### Rollback on failure
 
-Rollback only removes files this Phase **newly created** in this run — never files that already existed and were overwritten in place. Overwritten content is unrecoverable here (Phase A does not snapshot; only Phase B does), so rollback cannot restore it; the abort message must say so explicitly.
+Rollback removes only files this run **newly created** — never files that already existed and were overwritten (Phase A doesn't snapshot; only Phase B does, so overwrites are unrecoverable here).
 
-**Required preparation before any Phase 3 write**: capture an `existedBefore` set (the subset of these paths that exist on disk right now: `prd.json`, `.ralph/`, `.ralph/prompt.md`, `.ralph/ralph.{sh,ts,js,py}`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, `.ralph/package.json`, `.gitignore`). Then, after each successful Phase 3 write, also track which path was written so the rollback list is bounded to just what this run touched.
+**Preparation before any Phase 3 write**: capture an `existedBefore` set — which of `{prd.json, .ralph/, .ralph/prompt.md, .ralph/ralph.{sh,ts,js,py}, .ralph/RUNBOOK.md, .ralph/progress.txt, .ralph/package.json, .gitignore}` exist on disk now. After each successful write, record the path so the rollback list is bounded to this run.
 
-If any Phase 3 write fails, perform this rollback (reverse Phase 3 order) before re-raising the original error.
+If any Phase 3 write fails, run rollback in reverse Phase 3 order, then re-raise the original error.
 
-Candidate paths to consider, in reverse Phase 3 order:
+Candidate paths (reverse order; each gated on "this run wrote it AND it was NOT in `existedBefore`"):
 
-1. `.gitignore` block — only if step 10 appended the ralph block in this run; strip exactly those appended lines. If `.gitignore` was in `existedBefore`, never delete the file itself.
-2. `.ralph/package.json` — only if step 9 wrote it AND it was NOT in `existedBefore` (i.e. this run created it). If overwritten, leave in place.
-3. `.ralph/RUNBOOK.md` — only if step 8 wrote it AND it was NOT in `existedBefore`.
-4. `.ralph/progress.txt` — only if step 7 wrote it AND it was NOT in `existedBefore`.
-5. `.ralph/ralph.<ext>` — only if step 6 wrote it AND it was NOT in `existedBefore`.
-6. `.ralph/prompt.md` — only if step 5 wrote it AND it was NOT in `existedBefore`.
-7. `.ralph/` directory — only if step 4 created it AND `.ralph/` was NOT in `existedBefore` AND it is now empty.
-8. `prd.json` — only if step 3 wrote it AND `prd.json` was NOT in `existedBefore`.
+1. `.gitignore` block — if step 10 appended in this run, strip exactly those lines; never delete pre-existing `.gitignore` content.
+2. `.ralph/package.json` — step 9 wrote it AND not in `existedBefore`.
+3. `.ralph/RUNBOOK.md` — step 8 wrote it AND not in `existedBefore`.
+4. `.ralph/progress.txt` — step 7 wrote it AND not in `existedBefore`.
+5. `.ralph/ralph.<ext>` — step 6 wrote it AND not in `existedBefore`.
+6. `.ralph/prompt.md` — step 5 wrote it AND not in `existedBefore`.
+7. `.ralph/` dir — step 4 created it AND not in `existedBefore` AND now empty.
+8. `prd.json` — step 3 wrote it AND not in `existedBefore`.
 
-For any in-`existedBefore` path that this Phase overwrote before failing: do NOT delete; include it in the abort message under "unrecoverable overwrites" so the user knows which prior content is lost.
-
-Never remove runtime-only sentinels (`.lock`, `.complete`, `.commit-failure`, `.stop`) during rollback. If any deletion itself fails, log the path and continue with the rest — surface the original write error, the unrecoverable-overwrite list, and the rollback-failure list together in the abort message.
+For any in-`existedBefore` path overwritten before failing: do NOT delete; list under "unrecoverable overwrites" in the abort message. Never remove runtime-only sentinels (`.lock|.complete|.commit-failure|.stop`). On a rollback-deletion failure: log the path, continue. Abort message bundles: original error + unrecoverable-overwrite list + rollback-failure list.
 
 ## Phase 4 — Verification (passive checks)
 
@@ -331,9 +299,7 @@ Notes:
 
 ## Runtime override (`prd.json.runner`)
 
-Users can override the scaffold-time baked agent invocation by adding an optional `runner` object to `prd.json`. This lets them swap CLI binary, change model, or add flags without re-scaffolding.
-
-Schema (enforced by both `prd.schema.json` and runtime validation in all 4 drivers):
+Optional `runner` object in `prd.json` lets users swap CLI / model / flags without re-scaffolding:
 
 ```json
 {
@@ -344,22 +310,22 @@ Schema (enforced by both `prd.schema.json` and runtime validation in all 4 drive
 }
 ```
 
-Rules:
+Rules (enforced by `prd.schema.json` + every driver):
 
-- **All-or-nothing**: when `runner` is present, both `command` (non-empty string) and `args` (non-empty array of non-empty strings) are required. Partial override is rejected at schema and runtime.
-- **`{PROMPT}` sentinel**: the literal string `"{PROMPT}"` inside `args` is replaced at runtime with the contents of `.ralph/prompt.md`. If absent, the prompt is appended at the end as a positional argument with a stderr warning.
-- **Precedence**: driver CLI flags (e.g. `--model X`) still append to the resolved args, so last-flag-wins agents honor CLI overrides. Effective order: CLI flags > `runner.args` > scaffold-time baked default.
-- **Per-iteration validation**: the runner shape is re-checked each iteration (same as other prd.json fields). Agents that corrupt `runner` mid-loop trigger an abort.
-- **Security**: `runner.command` controls process execution. In a shared repo, treat edits to `runner` like code changes — review them in PRs.
-- **sh driver dependency**: parsing `runner` from `prd.json` uses `jq`, which the sh driver already requires.
+- **All-or-nothing.** Both `command` (non-empty string) and `args` (non-empty array of non-empty strings) required when `runner` is present.
+- **`{PROMPT}` sentinel** in `args` is replaced at runtime with `.ralph/prompt.md` content; if absent, prompt is appended at the end with a stderr warning.
+- **Precedence:** driver CLI flags (e.g. `--model X`) > `runner.args` > scaffold-time baked default. CLI flags are appended after resolved args; last-flag-wins agents honor that.
+- **Per-iteration validation** re-checks shape each iteration; corruption mid-loop aborts.
+- **Security:** `runner.command` controls process execution — review edits like code in PRs.
+- sh driver parses `runner` via the `jq` dep it already has.
 
-The scaffolder does not auto-emit `runner` because the baked invocation is the documented default. `templates/prd.json.example` includes a `runner` block purely as documentation.
+The scaffolder does NOT auto-emit `runner`; `templates/prd.json.example` ships a block as documentation only.
 
 ## Mode B — Amend (append user stories)
 
-Triggered when (`mode=amend` from `$ARGUMENTS` parsing) **OR** (existing-files prompt picked `[A]`). Pre-flight already verified: git repo, `prd.json` exists + schema-valid, `.ralph/` exists, `.ralph/.lock` absent, ≤ 1 existing `in_progress`.
+Triggered by `mode=amend` from arg parsing OR conflict prompt picking `[A]`. Pre-flight already verified: git repo, valid `prd.json`, `.ralph/` exists, no `.ralph/.lock`, ≤ 1 existing `in_progress`.
 
-**Scope (non-negotiable):** append-only on `userStories`. Do NOT modify `prd.json` top-level fields (`description`, `branchName`, `project`) or any existing story's fields. Do NOT touch `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, `.ralph/package.json`, or `.gitignore`. (Quality checks live in `.ralph/prompt.md` via the `{{QUALITY_CHECKS}}` placeholder, not in `prd.json` — they're covered by the prompt.md prohibition above.) Want to change any of these? Re-bootstrap (Mode A with `[O]verwrite`) — accept that you lose progress.
+**Scope (non-negotiable):** append-only on `userStories`. Do NOT modify top-level `description` / `branchName` / `project` or any existing story field. Do NOT touch `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, `.ralph/package.json`, or `.gitignore`. (Quality checks live in `prompt.md`, not `prd.json`.) To change any of the above, re-bootstrap via Mode A `[O]verwrite` and accept the progress loss.
 
 ### Phase B1 — Read-back & confirm config
 
@@ -374,18 +340,17 @@ Triggered when (`mode=amend` from `$ARGUMENTS` parsing) **OR** (existing-files p
    | `GEMINI.md` | `gemini` |
 
    Pre-flight already aborted on none/multiple; B1 just trusts the resolution.
-4. **Hash `.ralph/*` pre-amend state** for B4-7 drift detection. Compute `sha256` of these files (in this exact order, for stable comparison): `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, and — only when the detected `runtime == js` — `.ralph/package.json`. Store as `preAmendRalphHashes` keyed by filename. (The conditional `.ralph/package.json` entry closes the js-runtime gap: append-only contract covers it just like the other four.)
+4. **Hash `.ralph/*` for B4-7 drift detection.** Compute `sha256` of these (stable order): `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, plus `.ralph/package.json` only when `runtime == js` (covers the js-runtime append-only contract). Store as `preAmendRalphHashes` keyed by filename.
 
-   **Output format must be normalized to lowercase hex digest (no filename, no whitespace, no algorithm prefix)** — different host primitives return different shapes:
+   **Normalize to lowercase hex digest** (no filename, no whitespace, no algorithm prefix):
 
-   | Host primitive | Raw output shape | How to normalize |
+   | Primitive | Raw shape | Normalize |
    |---|---|---|
-   | POSIX `sha256sum` | `<hex>  <filename>` | take field 1, lowercase |
-   | macOS / BSD `shasum -a 256` | `<hex>  <filename>` | take field 1, lowercase |
-   | PowerShell `Get-FileHash -Algorithm SHA256` | `[PSCustomObject]{ Hash = "<UPPER_HEX>"; Path = ... }` | `.Hash.ToLower()` |
-   | Node `crypto.createHash('sha256').update(buf).digest('hex')` | already lowercase hex | use as-is |
+   | POSIX `sha256sum` / `shasum -a 256` | `<hex>  <filename>` | field 1, lowercase |
+   | PowerShell `Get-FileHash -Algorithm SHA256` | `[PSCustomObject]{ Hash="<UPPER_HEX>" }` | `.Hash.ToLower()` |
+   | Node `crypto.createHash('sha256').update(buf).digest('hex')` | lowercase hex | use as-is |
 
-   B4-7 compares `preAmendRalphHashes[<file>] === currentHash(<file>)`, both normalized the same way. If any of the four core files don't exist at B1 time → abort. Same for `.ralph/package.json` when `runtime == js`. Pre-flight `amendFeasible()` should have caught this; defensive check here in case of TOCTOU.
+   B4-7 deep-compares normalized strings. If any required file is missing at B1 → abort (defensive against TOCTOU; `amendFeasible()` should have caught it).
 5. **Confirm with user.** Print a single line and require `y`:
    ```
    Detected: agent=<X>, runtime=<Y>. Will append new stories to prd.json (existing .ralph/* untouched). Continue? (y/n)
@@ -411,19 +376,16 @@ Triggered when (`mode=amend` from `$ARGUMENTS` parsing) **OR** (existing-files p
    - `notes` = omitted (defaults to empty per schema).
 2. **Build draft:** clone `preAmendSnapshot` (deep clone, not reference), push new stories onto `userStories` in question-order. Print the draft (full file) and ask: *"Append these N stories? (y / edit / abort)"*. Only proceed on `y`.
 3. **Atomic write:**
-   - Stringify the draft with 2-space indent and a trailing LF newline.
-   - Write to `prd.json.tmp` in the same directory as `prd.json` (must be same filesystem for atomic rename).
-   - Best-effort `fsync` on the tmp file (skip if host shell lacks the primitive).
+   - Stringify with 2-space indent + trailing LF.
+   - Write to `prd.json.tmp` in the same directory (same filesystem for atomic rename).
+   - Best-effort `fsync` if the host provides it.
    - Rename `prd.json.tmp` → `prd.json` (POSIX `mv -f` / Windows `Move-Item -Force`).
-   - On Windows, rename can fail with EPERM/EACCES if another process holds a handle. **Retry once** after a deliberate sleep:
-     - POSIX hosts: invoke `sh -c 'sleep 0.25'` via the Bash tool.
-     - Windows PowerShell hosts: invoke `Start-Sleep -Milliseconds 250` via the PowerShell tool.
-     - Do NOT just "wait" without a tool call — the agent has no implicit sleep primitive.
-   - Second failure → **delete the `.tmp` file** unconditionally and abort with the original error. The file `prd.json` is unchanged because the rename never landed.
+   - On Windows, rename may EPERM/EACCES if a handle is held. **Retry once after explicit sleep** — POSIX: `sh -c 'sleep 0.25'` via Bash tool; PowerShell: `Start-Sleep -Milliseconds 250` via PowerShell tool. (The agent has no implicit sleep primitive — always go through a tool.)
+   - Second failure → delete `.tmp` unconditionally, abort with the original error (`prd.json` is intact because the rename never landed).
 
 ### Phase B4 — Verification
 
-Compare against `preAmendSnapshot` (the parsed-JSON snapshot from B1) using **deep-equal on the parsed object structure**, not byte-equal on the file. `preAmendSerialized` (raw bytes) is reserved for the restore path described below.
+Compare against B1's `preAmendSnapshot` using **deep-equal on parsed object structure**, not byte-equal. `preAmendSerialized` (raw bytes) is for the restore path only.
 
 | # | Check | On failure |
 |---|---|---|
@@ -436,13 +398,13 @@ Compare against `preAmendSnapshot` (the parsed-JSON snapshot from B1) using **de
 | B4-6 | Total count of stories with `status === "in_progress"` is ≤ 1 (driver–agent invariant enforced by every driver template) | hard fail — restore + abort |
 | B4-7 | Sanity drift check on `.ralph/*`. For each path that was hashed at B1 step 4 (the four core files always, plus `.ralph/package.json` when `runtime == js`): file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes` captured at B1 step 4. | warn — record drifted file list, surface in closing message (do NOT restore — those files weren't supposed to change, but if they did, user must reconcile manually) |
 
-**Restore procedure.** On any hard fail (B4-1..B4-6) or B3 atomic-write failure:
-1. Write `preAmendSerialized` (raw bytes from B1) to `prd.json.restore.tmp`.
-2. Rename `prd.json.restore.tmp` → `prd.json` (atomic rename, same retry-once-with-explicit-sleep policy as B3).
-3. If a `prd.json.tmp` left over from B3, delete it.
-4. Print which check failed + abort with non-zero exit signal to caller.
+**Restore procedure** on hard-fail B4-1..B4-6 or B3 write failure:
+1. Write `preAmendSerialized` (B1's raw bytes) to `prd.json.restore.tmp`.
+2. Rename → `prd.json` (same retry-once-with-sleep policy as B3).
+3. Delete any leftover `prd.json.tmp` from B3.
+4. Print which check failed; abort non-zero.
 
-This restores `prd.json` to **exact byte-for-byte pre-amend state**, including any whitespace / key-order quirks the file had before — important because the user may already have committed `prd.json` to git and we don't want to introduce a noise diff.
+Restores `prd.json` byte-for-byte (whitespace / key-order preserved) — avoids noise diff if the user had already committed it.
 
 ### Amend closing message
 
