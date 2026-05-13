@@ -71,13 +71,15 @@ Examples:
 
 `${CLAUDE_SKILL_DIR}` is a Claude Code substitution variable that resolves to this skill's bundled directory. Other CC-compatible hosts (Codex, Copilot CLI when running this SKILL via plugin import) provide it too. If you must run the parser outside any CC-style host, substitute the absolute path to this skill's directory.
 
-**Fallback (inline, when the script is unreachable):**
+**Fallback — POSIX only (inline, when the script is unreachable):**
 
 ```sh
 mode="bootstrap"
 case " $ARGUMENTS " in *" --amend "*) mode="amend" ;; esac
 userPrompt=$(printf '%s' "$ARGUMENTS" | sed -E 's/(^| )--amend( |$)/ /g; s/^ +//; s/ +$//; s/  +/ /g')
 ```
+
+This fallback relies on POSIX `sh` / `sed` / `printf` and **MUST NOT** be used on Windows PowerShell. If `parse-args.ps1` is unreachable on a PowerShell host, abort with: *"meta-ralph requires either the bundled `scripts/parse-args.ps1` or POSIX shell access. Neither was reachable; cannot parse $ARGUMENTS safely."* Do not attempt to translate the snippet — PowerShell's `case` / `sed` semantics differ enough that a hand-port silently mis-parses edge inputs.
 
 If `mode=amend` but no `prd.json` exists at repo root → abort early with: *"--amend requires an existing prd.json. Run meta-ralph without --amend to bootstrap first."*
 
