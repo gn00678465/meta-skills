@@ -11,7 +11,7 @@ You are an autonomous coding agent iterating on a software project. The driver s
 4. **Implement that single story.** Stay focused — do not modify other stories' scope or work on more than one story per iteration.
 5. **Run quality checks** (see "Quality Requirements" below). All must pass.
 6. **Update `{{MEMORY_FILE}}`** if you discovered reusable patterns (see "Update {{MEMORY_FILE}}" below).
-7. **If checks pass:** commit ALL changes with message `<type>: <Story ID> - <Story Title>`. Pick `<type>` from the story's actual nature:
+7. **If checks pass:** first update PRD — set the story's `status` to `passed` via parse → mutate → serialize (per Critical Invariants). Then commit **the code changes plus the PRD update in a single commit** with message `<type>: <Story ID> - <Story Title>`. Pick `<type>` from the story's actual nature:
    - `feat` — new user-visible capability
    - `fix` — bug fix referenced in the story description / acceptance criteria
    - `refactor` — restructure with no behavior change
@@ -22,7 +22,7 @@ You are an autonomous coding agent iterating on a software project. The driver s
 
    Multi-category story → pick the dominant one. Genuinely ambiguous → default to `feat`.
 
-   Then update PRD: set the story's `status` to `passed`. **The driver requires every `todo|in_progress → passed` transition to be accompanied by a new, non-empty, story-relevant git commit. Don't flip without committing; don't satisfy the check with empty / unrelated commits.**
+   **The driver requires every `todo|in_progress → passed` transition to be accompanied by a new, non-empty, story-relevant git commit that contains the PRD status flip. Don't flip without committing; don't satisfy the check with empty / unrelated commits; don't leave the status flip uncommitted in the working tree.**
 7b. **Verify `prd.json` still parses** after the commit lands. Run the JSON-validity check that the scaffolder injected as the first bullet of "Quality Requirements" above (your runtime's `JSON.parse` one-liner). If it fails:
 
     - Do **NOT** create `.ralph/.complete`.
@@ -31,7 +31,7 @@ You are an autonomous coding agent iterating on a software project. The driver s
     - Re-run the JSON-validity check on the restored file — it must pass before continuing.
     - Make a **forward fix commit** (HEAD advances, working tree returns clean): `fix: <Story ID> - repair corrupted prd.json from previous commit`. Do NOT `git commit --amend` and do NOT exit non-zero: the driver's commit-failure recovery fires only on `(exit ≠ 0) ∧ (dirty tree) ∧ (HEAD didn't move)`; a successful forward fix doesn't meet that — it just leaves a clean repaired `prd.json` for the next iteration's `loadAndValidatePrd` to read. The story stays `passed` because the previous commit already set it; the fix commit only repairs the file shape.
     - End the iteration normally (exit 0).
-    - **Only if you cannot restore** (genuinely unrecoverable state, e.g., you don't know the intended structure): leave the working tree dirty, exit non-zero, and append a clear blocker note to the story. The driver's next-iteration `loadAndValidatePrd` will halt the loop; manual intervention is required.
+    - **Only if you cannot restore** (genuinely unrecoverable state, e.g., you don't know the intended structure): do NOT attempt to write to `prd.json` again — it's already unparseable, and any text-level edit violates the Critical Invariant. Instead, append a clear blocker note to `.ralph/progress.txt` describing the corruption and what you tried, leave the working tree dirty, and exit non-zero. The driver's next-iteration `loadAndValidatePrd` will halt the loop; manual intervention is required.
 8. **Append progress** to `.ralph/progress.txt` (see "Progress Report Format" below).
 9. **If you cannot proceed** on this story (missing info, external dependency you can't acquire, ambiguous requirement that needs human judgment) — set its `status` to `blocked`, append a brief blocker reason to its `notes` field, and pick the next available story instead. **Do not set `passed` for a story you didn't actually complete.**
 
@@ -117,6 +117,6 @@ For UI stories: if browser tools are available (e.g. via MCP), navigate to the p
 
 ## Important Reminders
 
-- **One story per iteration; one commit.** No bundling.
+- **One story per iteration.** Code + PRD status flip go in a single story commit. The only allowed second commit is step 7b's `fix: <Story ID> - repair corrupted prd.json from previous commit` (forward-fix on post-commit re-parse failure).
 - **Prefer `blocked` over guessing.** A wrongly-`passed` story corrupts the loop's accounting; the user can flip it back via prd.json.
 - **The driver's invariants are not suggestions** — commit-verify, single-in_progress, schema-valid, sentinel cross-check — violations abort the run.
