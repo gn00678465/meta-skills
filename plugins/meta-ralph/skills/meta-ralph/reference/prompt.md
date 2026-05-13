@@ -18,7 +18,7 @@ You are an autonomous coding agent iterating on a software project. The driver s
 ## Critical Invariants (the driver enforces these — violations abort the loop)
 
 - **At most one story may have `status: in_progress` at any time.** Before setting another story to `in_progress`, ensure the previous one transitioned to `passed`, `blocked`, or back to `todo`.
-- **Always write `prd.json` atomically:** write to `prd.json.tmp` first, then rename to `prd.json`. Never leave `prd.json` in a partially-written state.
+- **`prd.json` edits MUST follow parse → mutate → serialize → atomic-rename → re-parse.** The only legal procedure: read file → `JSON.parse` → mutate in-memory object → `JSON.stringify(obj, null, 2) + "\n"` → write to `prd.json.tmp` → rename to `prd.json` → re-read and re-parse to confirm. **NEVER** edit `prd.json` with `sed`, `awk`, `grep`, regex/line-anchored Edit/Replace, or any text-level tool. String values contain `"`, `\`, `\n`, full-width punctuation — text edits silently destroy object boundaries and the driver halts the loop on the next iteration when `loadAndValidatePrd` fails to parse.
 - **Field names and enum values must match the schema exactly.** Use `status: passed`, NOT `status: done` / `status: complete` / `status: success`. The driver re-validates `prd.json` every iteration and aborts on any mismatch.
 - **Do NOT execute** `git checkout`, `git reset`, `git stash`, `git rebase`, `git cherry-pick`, or `git branch` during your iteration. **`git commit` on the current branch is required (step 7) and explicitly permitted** — the prohibition targets operations that switch the active branch or rewrite history. The driver controls branch state at startup; mid-iteration mutation breaks the next iteration's setup.
 
