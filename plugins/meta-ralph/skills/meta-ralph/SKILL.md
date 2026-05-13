@@ -30,10 +30,11 @@ target-project/
     ├── prompt.md           ← agent instructions, {{MEMORY_FILE}} replaced
     ├── ralph.<sh|ts|js|py> ← loop driver, placeholder replaced, executable
     ├── RUNBOOK.md          ← user-facing intervention guide, {{RUN_COMMAND}} replaced
-    └── progress.txt        ← seeded with `## Codebase Patterns\n`
+    ├── progress.txt        ← seeded with `## Codebase Patterns\n`
+    └── package.json        ← conditional: runtime=js only; pins CommonJS so .ralph/ralph.js's require() works under parent `"type":"module"` packages
 ```
 
-`.ralph/.lock` and `.ralph/.complete` are runtime-only; never written by the SKILL.
+Runtime-only files — created by the driver at run time, never written by the SKILL: `.ralph/.lock`, `.ralph/.complete`, `.ralph/.commit-failure`, `.ralph/.stop`.
 
 ## Invocation & argument parsing
 
