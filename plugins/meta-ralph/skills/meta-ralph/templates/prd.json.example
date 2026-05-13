@@ -2,6 +2,10 @@
   "project": "MyApp",
   "branchName": "ralph/task-priority",
   "description": "Task Priority System - Add priority levels to tasks",
+  "runner": {
+    "command": "claude",
+    "args": ["-p", "--dangerously-skip-permissions"]
+  },
   "userStories": [
     {
       "id": "US-001",

@@ -28,9 +28,29 @@
       "minItems": 1,
       "description": "Ordered list of stories the agent works through. Lower priority value = higher priority.",
       "items": { "$ref": "#/definitions/userStory" }
+    },
+    "runner": {
+      "$ref": "#/definitions/runner"
     }
   },
   "definitions": {
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional agent CLI invocation override. Drivers read this at runtime and fall back to the command/args baked in at scaffold time if a field is missing. Precedence: driver CLI flags (e.g. --model) > runner.args > scaffold-time default.",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Agent CLI binary to spawn. Open-ended string — common values: 'claude', 'codex', 'gemini', 'copilot', 'aider', 'cursor-agent'. Security note: this controls process execution; treat prd.json edits in PRs as code review."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Argument list passed to <command>. Examples: ['-p'], ['--model', 'opus', '--dangerously-skip-permissions']."
+        }
+      }
+    },
     "userStory": {
       "type": "object",
       "additionalProperties": false,
