@@ -21,10 +21,11 @@ const STOP_SENTINEL = ".ralph/.stop";
 const ALLOWED_STATUS = new Set(["todo", "in_progress", "passed", "blocked"]);
 
 // Exit-summary state — declared early so signal handlers (registered shortly below)
-// can mutate exitReason without TDZ risk.
+// can read/mutate without TDZ risk if the process exits during init.
 let itersCompleted = 0;
 let exitReason = "incomplete";
 let shouldStop = false;
+let MAX_ITERATIONS = 10;
 
 // Helper: run git, capture stdout
 function git(...args: string[]): { stdout: string; status: number } {
@@ -203,7 +204,7 @@ function printSummary(): void {
 process.on("exit", printSummary);
 
 // Step 10: main loop. CLI args parsed below: [N] [--model X] in any order.
-let MAX_ITERATIONS = 10;
+// MAX_ITERATIONS is declared at the top with the other exit-summary state.
 let MODEL = "";
 const cliArgs = process.argv.slice(2);
 while (cliArgs.length > 0) {
