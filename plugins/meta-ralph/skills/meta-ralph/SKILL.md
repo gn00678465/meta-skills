@@ -222,20 +222,26 @@ Render in this order:
 
 ### Rollback on failure
 
-If any Phase 3 write fails, perform this rollback before aborting (mirrors Phase 3's write order, deleting only what *this* Phase actually created in *this* run). Track each successful write in memory; on failure, delete those tracked files in reverse order, then re-raise the original error.
+Rollback only removes files this Phase **newly created** in this run — never files that already existed and were overwritten in place. Overwritten content is unrecoverable here (Phase A does not snapshot; only Phase B does), so rollback cannot restore it; the abort message must say so explicitly.
 
-Candidate paths to remove, in reverse Phase 3 order:
+**Required preparation before any Phase 3 write**: capture an `existedBefore` set (the subset of these paths that exist on disk right now: `prd.json`, `.ralph/`, `.ralph/prompt.md`, `.ralph/ralph.{sh,ts,js,py}`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, `.ralph/package.json`, `.gitignore`). Then, after each successful Phase 3 write, also track which path was written so the rollback list is bounded to just what this run touched.
 
-1. `.gitignore` block — if step 10 appended the ralph block, strip those exact lines (do not delete pre-existing `.gitignore` content).
-2. `.ralph/package.json` — only if Phase 3 step 9 wrote it (runtime=js).
-3. `.ralph/RUNBOOK.md` — if step 8 wrote it.
-4. `.ralph/progress.txt` — if step 7 wrote it.
-5. `.ralph/ralph.<ext>` — if step 6 wrote it.
-6. `.ralph/prompt.md` — if step 5 wrote it.
-7. `.ralph/` directory — only if step 4 created it AND it is now empty (do not remove a pre-existing `.ralph/` left untouched by overwrite).
-8. `prd.json` — only if step 3 created it on a fresh scaffold (do not delete an existing user-authored `prd.json` that step 3 overwrote — refuse to delete what the user already owned).
+If any Phase 3 write fails, perform this rollback (reverse Phase 3 order) before re-raising the original error.
 
-Never remove runtime-only sentinels (`.lock`, `.complete`, `.commit-failure`, `.stop`) during rollback. If any deletion itself fails, log the path and continue with the rest — surface both the original write error and the rollback failures in the abort message.
+Candidate paths to consider, in reverse Phase 3 order:
+
+1. `.gitignore` block — only if step 10 appended the ralph block in this run; strip exactly those appended lines. If `.gitignore` was in `existedBefore`, never delete the file itself.
+2. `.ralph/package.json` — only if step 9 wrote it AND it was NOT in `existedBefore` (i.e. this run created it). If overwritten, leave in place.
+3. `.ralph/RUNBOOK.md` — only if step 8 wrote it AND it was NOT in `existedBefore`.
+4. `.ralph/progress.txt` — only if step 7 wrote it AND it was NOT in `existedBefore`.
+5. `.ralph/ralph.<ext>` — only if step 6 wrote it AND it was NOT in `existedBefore`.
+6. `.ralph/prompt.md` — only if step 5 wrote it AND it was NOT in `existedBefore`.
+7. `.ralph/` directory — only if step 4 created it AND `.ralph/` was NOT in `existedBefore` AND it is now empty.
+8. `prd.json` — only if step 3 wrote it AND `prd.json` was NOT in `existedBefore`.
+
+For any in-`existedBefore` path that this Phase overwrote before failing: do NOT delete; include it in the abort message under "unrecoverable overwrites" so the user knows which prior content is lost.
+
+Never remove runtime-only sentinels (`.lock`, `.complete`, `.commit-failure`, `.stop`) during rollback. If any deletion itself fails, log the path and continue with the rest — surface the original write error, the unrecoverable-overwrite list, and the rollback-failure list together in the abort message.
 
 ## Phase 4 — Verification (passive checks)
 
