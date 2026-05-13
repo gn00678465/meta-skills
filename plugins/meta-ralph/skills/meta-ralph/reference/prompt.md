@@ -11,7 +11,19 @@ You are an autonomous coding agent iterating on a software project. The driver s
 4. **Implement that single story.** Stay focused — do not modify other stories' scope or work on more than one story per iteration.
 5. **Run quality checks** (see "Quality Requirements" below). All must pass.
 6. **Update `{{MEMORY_FILE}}`** if you discovered reusable patterns (see "Update {{MEMORY_FILE}}" below).
-7. **If checks pass:** commit ALL changes with message `feat: <Story ID> - <Story Title>`. Then update PRD: set the story's `status` to `passed`. **The driver verifies that flipping a story to `passed` is accompanied by a new git commit; do not flip without committing. Empty commits or commits unrelated to the story do not satisfy this contract — acting in bad faith breaks the loop's intent.**
+7. **If checks pass:** commit ALL changes with message `<type>: <Story ID> - <Story Title>`. Pick `<type>` from the story's actual nature:
+   - `feat` — new user-visible capability
+   - `fix` — bug fix referenced in the story description / acceptance criteria
+   - `refactor` — restructure with no behavior change
+   - `perf` — performance improvement
+   - `docs` — documentation-only
+   - `test` — adds/updates tests only
+   - `chore` — tooling / config / dependency / build-system
+
+   Multi-category story → pick the dominant one. Genuinely ambiguous → default to `feat`.
+
+   Then update PRD: set the story's `status` to `passed`. **The driver verifies that flipping a story to `passed` is accompanied by a new git commit; do not flip without committing. Empty commits or commits unrelated to the story do not satisfy this contract — acting in bad faith breaks the loop's intent.**
+7b. **Verify `prd.json` still parses** after the commit lands. Run the JSON-validity check that the scaffolder injected as the first bullet of "Quality Requirements" above (your runtime's `JSON.parse` one-liner). If it fails: do **not** create `.ralph/.complete`, restore `prd.json` via the parse → mutate → serialize procedure (re-applying only the `status` flip you intended), `git commit --amend` (or follow-up commit) with the same message, then exit non-zero so the driver triggers commit-failure recovery instead of advancing.
 8. **Append progress** to `.ralph/progress.txt` (see "Progress Report Format" below).
 9. **If you cannot proceed** on this story (missing info, external dependency you can't acquire, ambiguous requirement that needs human judgment) — set its `status` to `blocked`, append a brief blocker reason to its `notes` field, and pick the next available story instead. **Do not set `passed` for a story you didn't actually complete.**
 
