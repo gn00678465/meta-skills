@@ -85,6 +85,7 @@ function loadAndValidatePrd(): {
   branchName: string;
   description: string;
   userStories: Array<{ id: string; status: string; title: string; [k: string]: unknown }>;
+  runner?: { command: string; args: string[] };
 } {
   if (!existsSync("prd.json")) {
     console.error("❌ prd.json missing in repo root");
@@ -114,6 +115,20 @@ function loadAndValidatePrd(): {
   for (const s of prd.userStories) {
     if (typeof s !== "object" || s === null || !ALLOWED_STATUS.has(s.status)) {
       console.error(`❌ Invalid status in story ${s?.id ?? "?"}: ${s?.status}`);
+      process.exit(1);
+    }
+  }
+  if (prd.runner !== undefined) {
+    if (typeof prd.runner !== "object" || prd.runner === null) {
+      console.error("❌ prd.json.runner must be an object when present");
+      process.exit(1);
+    }
+    if (typeof prd.runner.command !== "string" || !prd.runner.command) {
+      console.error("❌ prd.json.runner.command must be a non-empty string");
+      process.exit(1);
+    }
+    if (!Array.isArray(prd.runner.args) || prd.runner.args.some((a: unknown) => typeof a !== "string" || !a)) {
+      console.error("❌ prd.json.runner.args must be a non-empty array of non-empty strings");
       process.exit(1);
     }
   }
@@ -232,7 +247,20 @@ if (!Number.isFinite(MAX_ITERATIONS) || MAX_ITERATIONS < 1) {
 }
 
 const PROMPT = readFileSync(".ralph/prompt.md", "utf8");
-const argv = {{AGENT_ARGV}};
+const BAKED_ARGV: string[] = {{AGENT_ARGV}};
+// prd.json runner override (all-or-nothing): replaces BAKED_ARGV when present.
+// '{PROMPT}' inside runner.args is substituted with the prompt content; if missing,
+// the prompt is appended at the end so the agent still receives it.
+const argv: string[] = (() => {
+  if (!initialPrd.runner) return BAKED_ARGV;
+  const expanded = initialPrd.runner.args.map((a) => (a === "{PROMPT}" ? PROMPT : a));
+  const hasSentinel = initialPrd.runner.args.some((a) => a === "{PROMPT}");
+  if (!hasSentinel) {
+    console.warn("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.");
+    expanded.push(PROMPT);
+  }
+  return [initialPrd.runner.command, ...expanded];
+})();
 // MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 const MODEL_ARGS: string[] = MODEL ? ["--model", MODEL] : [];
 

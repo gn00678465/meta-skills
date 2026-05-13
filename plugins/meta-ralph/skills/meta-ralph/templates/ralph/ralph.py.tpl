@@ -130,6 +130,19 @@ def load_and_validate_prd():
             sstatus = s.get("status") if isinstance(s, dict) else None
             print(f"❌ Invalid status in story {sid}: {sstatus}", file=sys.stderr)
             sys.exit(1)
+    runner = prd.get("runner")
+    if runner is not None:
+        if not isinstance(runner, dict):
+            print("❌ prd.json.runner must be an object when present", file=sys.stderr)
+            sys.exit(1)
+        cmd = runner.get("command")
+        if not isinstance(cmd, str) or not cmd:
+            print("❌ prd.json.runner.command must be a non-empty string", file=sys.stderr)
+            sys.exit(1)
+        args = runner.get("args")
+        if not isinstance(args, list) or not args or any(not isinstance(a, str) or not a for a in args):
+            print("❌ prd.json.runner.args must be a non-empty array of non-empty strings", file=sys.stderr)
+            sys.exit(1)
     return prd
 
 
@@ -252,7 +265,19 @@ if MAX_ITERATIONS < 1:
     sys.exit(1)
 
 PROMPT = Path(".ralph/prompt.md").read_text(encoding="utf-8")
-argv = {{AGENT_ARGV}}
+BAKED_ARGV = {{AGENT_ARGV}}
+# prd.json runner override (all-or-nothing): replaces BAKED_ARGV when present.
+# '{PROMPT}' inside runner.args is substituted with the prompt content; if missing,
+# the prompt is appended at the end so the agent still receives it.
+_runner = initial_prd.get("runner")
+if _runner:
+    _expanded = [PROMPT if a == "{PROMPT}" else a for a in _runner["args"]]
+    if "{PROMPT}" not in _runner["args"]:
+        print("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.", file=sys.stderr)
+        _expanded.append(PROMPT)
+    argv = [_runner["command"]] + _expanded
+else:
+    argv = BAKED_ARGV
 # MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 MODEL_ARGS = ["--model", MODEL] if MODEL else []
 

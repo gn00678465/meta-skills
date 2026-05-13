@@ -85,6 +85,9 @@ jq -e '.project and .branchName and .description and (.userStories | type == "ar
   || { echo "❌ prd.json missing required top-level fields (project / branchName / description / userStories)"; exit 1; }
 jq -e '[.userStories[] | select(.status as $s | ["todo","in_progress","passed","blocked"] | index($s) == null)] | length == 0' prd.json >/dev/null \
   || { echo "❌ prd.json has story with invalid status (must be todo/in_progress/passed/blocked)"; exit 1; }
+# runner override (optional): if present, command must be non-empty string AND args must be non-empty array of non-empty strings.
+jq -e 'if has("runner") then (.runner | type == "object" and (.command | type == "string" and length > 0) and (.args | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))) else true end' prd.json >/dev/null \
+  || { echo "❌ prd.json.runner must be {command: <non-empty string>, args: <non-empty array of non-empty strings>}"; exit 1; }
 
 # Step 6: detached HEAD check
 git symbolic-ref -q HEAD >/dev/null || { echo "❌ Detached HEAD. Checkout a branch first."; exit 1; }
@@ -132,6 +135,30 @@ STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # Build per-iteration extra args (--model X) honoring the optional flag from step 1.5
 MODEL_ARGS=()
 [[ -n "$MODEL" ]] && MODEL_ARGS=("--model" "$MODEL")
+
+# Resolve agent invocation: prd.json runner override (all-or-nothing) replaces the
+# baked {{AGENT_CLI}} string. '{PROMPT}' inside runner.args is substituted with
+# the prompt content; if missing, the prompt is appended at the end.
+HAS_RUNNER=$(jq -r 'has("runner")' prd.json)
+RUNNER_CMD=""
+RUNNER_ARGS=()
+if [[ "$HAS_RUNNER" == "true" ]]; then
+  RUNNER_CMD=$(jq -r '.runner.command' prd.json)
+  PROMPT_CONTENT=$(cat .ralph/prompt.md)
+  HAS_SENTINEL=0
+  while IFS= read -r _a; do
+    if [[ "$_a" == "{PROMPT}" ]]; then
+      RUNNER_ARGS+=("$PROMPT_CONTENT")
+      HAS_SENTINEL=1
+    else
+      RUNNER_ARGS+=("$_a")
+    fi
+  done < <(jq -r '.runner.args[]' prd.json)
+  if (( HAS_SENTINEL == 0 )); then
+    echo "⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end." >&2
+    RUNNER_ARGS+=("$PROMPT_CONTENT")
+  fi
+fi
 
 # Exit summary printer — invoked via EXIT trap on every termination path.
 # Robust against early-exit scenarios where INITIAL_SHA/STARTED_AT may be empty.
@@ -221,8 +248,13 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
 
   # 10c. invoke agent — capture exit code separately so consistency checks always run.
   # MODEL_ARGS is empty when --model not given (no extra flag passed to agent CLI).
+  # When prd.json.runner is set, RUNNER_CMD/RUNNER_ARGS override the baked invocation.
   set +e
-  {{AGENT_CLI}} "${MODEL_ARGS[@]}"
+  if [[ -n "$RUNNER_CMD" ]]; then
+    "$RUNNER_CMD" "${RUNNER_ARGS[@]}" "${MODEL_ARGS[@]}"
+  else
+    {{AGENT_CLI}} "${MODEL_ARGS[@]}"
+  fi
   AGENT_EXIT=$?
   set -e
 
@@ -273,6 +305,8 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
     || { echo "❌ Agent removed/corrupted required top-level fields"; exit 1; }
   jq -e '[.userStories[] | select(.status as $s | ["todo","in_progress","passed","blocked"] | index($s) == null)] | length == 0' prd.json >/dev/null \
     || { echo "❌ Agent wrote invalid status value to prd.json"; exit 1; }
+  jq -e 'if has("runner") then (.runner | type == "object" and (.command | type == "string" and length > 0) and (.args | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))) else true end' prd.json >/dev/null \
+    || { echo "❌ Agent corrupted prd.json.runner shape"; exit 1; }
 
   # 10e. invariant: at most 1 story in_progress at iteration end
   IN_PROGRESS_COUNT=$(jq '[.userStories[] | select(.status=="in_progress")] | length' prd.json)
