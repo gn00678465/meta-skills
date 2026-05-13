@@ -54,8 +54,8 @@ Always emit alongside other targets. Skills go to `.agents/skills/` so any APM-a
 |-------------|------------|
 | External APM packages (`react-best-practices`, etc.) | `apm install` (Step 3) |
 | MCP servers declared in `apm.yml` | `apm install` |
-| Bundled skills shipped with this meta-skill (`skills/<name>/`) | This skill (Step 5) |
-| Bundled rules shipped with this meta-skill (`rules/<name>.md`) | This skill (Step 6) |
+| Bundled skills shipped with this meta-skill (`skills/<name>/`) | This skill (Step 4) |
+| Bundled rules shipped with this meta-skill (`rules/<name>.md`) | This skill (Step 5) |
 
 The split is intentional: APM owns version-pinned remote dependencies; this skill owns the team's locally-curated, source-of-truth assets that are always fresh from the repo.
 
