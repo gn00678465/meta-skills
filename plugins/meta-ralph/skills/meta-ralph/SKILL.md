@@ -11,7 +11,7 @@ Pure scaffolder for the **ralph autonomous coding loop**. Two modes:
 - **Mode A — Bootstrap (default).** First-run scaffolding. The user describes what to build, picks agent + runtime, the SKILL writes `prd.json` + `.ralph/*`. Phases 1–4 below.
 - **Mode B — Amend (`--amend` flag).** Second invocation; user already has `prd.json` and wants to **append** new user stories. The SKILL only mutates `prd.json` and never touches `.ralph/*`. Phases B1–B4, defined under "Mode B — Amend" near the end of this file.
 
-**Authoritative spec:** `docs/meta-ralph-spec.md` — full Driver–Agent Contract (§7), bash skeleton (§9.1), prompt.md modifications (§10), and known v1 limits (§7.3). Mode B implements §12 Issue #1; deep-dive in `docs/meta-ralph-v2-plans.md` Issue #1.
+This file is self-contained: the Driver–Agent Contract, scaffold steps, verification table, and amend flow live entirely below. User-facing usage notes are in `plugins/meta-ralph/docs/meta-ralph.md`.
 
 ## Constraints (non-negotiable)
 
@@ -37,7 +37,7 @@ target-project/
 
 ## Invocation & argument parsing
 
-The SKILL receives `$ARGUMENTS` (Claude Code substitution; see `references/claude-code/argument-substitutions.md` in skill-writer). Parse it once, before pre-flight, into:
+The SKILL receives `$ARGUMENTS` — a Claude Code substitution variable holding the raw text the user typed after the slash-command (or trigger phrase). Parse it once, before pre-flight, into:
 
 | Field | Rule |
 |---|---|
@@ -217,7 +217,7 @@ Render in this order:
    .ralph/.commit-failure
    .ralph/.stop
    ```
-   If `.gitignore` already contains these lines, skip — don't duplicate. Notes: `.commit-failure` is the v1.1 commit-repair sentinel (see spec §12 Issue #15); driver writes it on commit failure, agent deletes it after successful repair, so it's runtime-only and never tracked. `.stop` is the v1.2 graceful-stop sentinel (see spec §12 Issue #12); user touches it from another terminal to make the driver exit cleanly after the current iteration.
+   If `.gitignore` already contains these lines, skip — don't duplicate. Notes: `.commit-failure` is the commit-repair sentinel — the driver writes it on commit failure, the agent deletes it after successful repair, so it's runtime-only and never tracked. `.stop` is the graceful-stop sentinel — the user touches it from another terminal to make the driver exit cleanly after the current iteration.
 
 ### Rollback on failure
 
@@ -238,7 +238,7 @@ Never remove runtime-only sentinels (`.lock`, `.complete`, `.commit-failure`, `.
 
 ## Phase 4 — Verification (passive checks)
 
-> **Cross-ref**: this table is the executable form of the contract specified in `docs/meta-ralph-spec.md` §8 "[Phase 4: Verification]" (lines 354–376). Both must be kept in sync — change one, propagate to the other.
+This table is the executable form of the §Output contract at the top of this file — each check confirms one row of that promised output. Keep them in sync: if you add a written artifact, add the matching check; if you drop a check, drop the artifact from §Output.
 
 | # | Check | On failure |
 |---|---|---|
@@ -275,8 +275,10 @@ If you get stuck: read .ralph/RUNBOOK.md — it covers status inspection, gracef
 intervention when the agent loops, and recovery from driver abort messages.
 
 For long runs (>30 min): suppress OS sleep before launching the driver, otherwise
-suspend will freeze the agent process and corrupt the iteration on resume. See
-docs/meta-ralph-spec.md §7.3 for OS-specific commands.
+suspend will freeze the agent process and corrupt the iteration on resume.
+  - macOS:   `caffeinate -i <run command>` (or run in a separate iTerm tab)
+  - Linux:   `systemd-inhibit --what=sleep <run command>` (or disable sleep in settings)
+  - Windows: `powercfg /change standby-timeout-ac 0` before launch (restore after).
 ```
 
 ### Runtime Command Table
@@ -409,7 +411,7 @@ Compare against `preAmendSnapshot` (the parsed-JSON snapshot from B1) using **de
 | B4-3 | New stories occupy indices `[N_old, N_old + N_new)`; each has `status === "todo"`; `id` matches `^US-\d{3,}$`; `acceptanceCriteria.length ≥ 1` | hard fail — restore + abort |
 | B4-4 | **Priority append-to-tail invariant.** For every new story `s`: `s.priority > max(preAmendSnapshot.userStories.map(s ⇒ s.priority))`. New story priorities are pairwise unique. | hard fail — restore + abort |
 | B4-5 | All story `id` values across the whole array are unique | hard fail — restore + abort |
-| B4-6 | Total count of stories with `status === "in_progress"` is ≤ 1 (driver-agent invariant from spec §10 mod #12) | hard fail — restore + abort |
+| B4-6 | Total count of stories with `status === "in_progress"` is ≤ 1 (driver–agent invariant enforced by every driver template) | hard fail — restore + abort |
 | B4-7 | Sanity drift check on `.ralph/*`. For each of `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`: file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes` captured at B1 step 4. | warn — record drifted file list, surface in closing message (do NOT restore — those files weren't supposed to change, but if they did, user must reconcile manually) |
 
 **Restore procedure.** On any hard fail (B4-1..B4-6) or B3 atomic-write failure:
@@ -449,10 +451,12 @@ To resume the loop (only after reviewing drift):
 
 ## See also
 
-- `docs/meta-ralph-spec.md` — authoritative implementation spec. Read for: Driver–Agent Contract (§7), full bash skeleton with consistency checks (§9.1), ts/js/py mapping table (§9.2), prompt.md 14 modifications (§10), known v1 limits (§7.3), v2 plans index (§12), implementation checklist (§13).
-- `docs/meta-ralph-v2-plans.md` — detailed designs for v2 plans, indexed 1:1 against spec §12 (e.g. Issue #12 = `while` + 雙階段 SIGINT + `.stop` sentinel deep-dive).
-- `docs/meta-ralph.md` — original design notes (historical context).
-- `templates/prd.schema.json` — schema used by Phase 4 check #2.
-- `templates/RUNBOOK.md.tpl` — user intervention guide template, rendered in Phase 3 step 8.
-- `reference/prompt.md` — agent prompt template loaded in Phase 3 step 1.
-- `scripts/parse-args.sh` / `scripts/parse-args.ps1` — `$ARGUMENTS` parsers for Mode dispatch (see `## Invocation & argument parsing`). Output `{"mode":"bootstrap"|"amend","userPrompt":"..."}`.
+Bundled with this plugin (every path resolves under `plugins/meta-ralph/`):
+
+- `docs/meta-ralph.md` — user-facing quickstart for operators.
+- `skills/meta-ralph/templates/prd.schema.json` — JSON Schema used by Phase 4 check #2.
+- `skills/meta-ralph/templates/prd.json.example` — runner-block reference (see "Runtime override" above).
+- `skills/meta-ralph/templates/RUNBOOK.md.tpl` — user-intervention guide rendered in Phase 3 step 8.
+- `skills/meta-ralph/templates/ralph/ralph.{sh,ts,js,py}.tpl` — driver templates rendered in Phase 3 step 6.
+- `skills/meta-ralph/reference/prompt.md` — agent prompt template loaded in Phase 3 step 1.
+- `skills/meta-ralph/scripts/parse-args.sh` / `parse-args.ps1` — `$ARGUMENTS` parsers for mode dispatch (see "Invocation & argument parsing"). Output `{"mode":"bootstrap"|"amend","userPrompt":"..."}`.
