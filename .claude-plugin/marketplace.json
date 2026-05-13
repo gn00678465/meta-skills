@@ -7,19 +7,6 @@
   },
   "plugins": [
     {
-      "name": "meta-bootstrap-docs",
-      "source": "./plugins/meta-bootstrap-docs",
-      "description": "Scaffolds CLAUDE.md / AGENTS.md (and Karpathy-style guidelines) into a target repo",
-      "category": "agentic",
-      "tags": [
-        "scaffolder",
-        "claude-md",
-        "agents-md",
-        "bootstrap",
-        "skills"
-      ]
-    },
-    {
       "name": "meta-ralph",
       "source": "./plugins/meta-ralph",
       "description": "Scaffold ralph autonomous coding loops with PRD-driven user stories, driver-agent contract, and multi-runtime drivers (sh/ts/js/py)",
