@@ -7,7 +7,7 @@ The shipped template at `templates/apm.yml` is intentionally minimal. This file 
 ```yaml
 name: <project-name>
 version: 1.0.0
-description: React project scaffolded with meta-react
+description: React project configured with meta-react agent assets
 targets:
   - claude
   - copilot

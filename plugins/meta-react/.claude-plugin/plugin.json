@@ -1,7 +1,7 @@
 {
   "name": "meta-react",
   "version": "0.1.0",
-  "description": "Scaffold React-project conventions: APM yml template, path-mapping / frontmatter-transform / install-workflow references, react-components rules, plus nested skills (e.g. no-use-effect)",
+  "description": "Deploys cross-platform agent assets (apm.yml, bundled skills/rules, framework-specific AGENTS.md) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself.",
   "author": {
     "name": "Madao",
     "email": "gn00678465@gmail.com"
@@ -12,7 +12,8 @@
   "keywords": [
     "skills",
     "react",
-    "scaffolder",
+    "agent-assets",
+    "apm",
     "conventions"
   ]
 }
