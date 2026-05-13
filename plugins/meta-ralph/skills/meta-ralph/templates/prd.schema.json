@@ -37,7 +37,8 @@
     "runner": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Optional agent CLI invocation override. Drivers read this at runtime and fall back to the command/args baked in at scaffold time if a field is missing. Precedence: driver CLI flags (e.g. --model) > runner.args > scaffold-time default.",
+      "required": ["command", "args"],
+      "description": "Optional all-or-nothing agent CLI invocation override. When present, drivers use runner.command + runner.args verbatim instead of the scaffold-time baked default. When absent, drivers fall back to the baked default. Use the literal string '{PROMPT}' inside `args` as a sentinel that the driver replaces with the contents of .ralph/prompt.md; if no sentinel is present, the prompt is appended at the end as a positional arg. Driver CLI flags (e.g. --model) are still appended after runner.args, so they take precedence for agents that honor last-flag-wins.",
       "properties": {
         "command": {
           "type": "string",
@@ -47,7 +48,7 @@
         "args": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "Argument list passed to <command>. Examples: ['-p'], ['--model', 'opus', '--dangerously-skip-permissions']."
+          "description": "Full argument list passed to <command>. Use '{PROMPT}' as a sentinel marking where the agent receives the prompt content (read from .ralph/prompt.md at runtime). Example: ['-p', '{PROMPT}', '--model', 'opus', '--dangerously-skip-permissions']."
         }
       }
     },

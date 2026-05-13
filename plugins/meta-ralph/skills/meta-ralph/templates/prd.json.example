@@ -4,7 +4,7 @@
   "description": "Task Priority System - Add priority levels to tasks",
   "runner": {
     "command": "claude",
-    "args": ["-p", "--dangerously-skip-permissions"]
+    "args": ["-p", "{PROMPT}", "--dangerously-skip-permissions"]
   },
   "userStories": [
     {
