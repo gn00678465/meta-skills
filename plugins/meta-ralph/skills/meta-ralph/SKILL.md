@@ -225,8 +225,8 @@ If any Phase 3 write fails, perform this rollback before aborting (mirrors Phase
 
 Candidate paths to remove, in reverse Phase 3 order:
 
-1. `.ralph/package.json` — only if Phase 3 step 9 wrote it (runtime=js).
-2. `.gitignore` block — if step 10 appended the ralph block, strip those exact lines (do not delete pre-existing `.gitignore` content).
+1. `.gitignore` block — if step 10 appended the ralph block, strip those exact lines (do not delete pre-existing `.gitignore` content).
+2. `.ralph/package.json` — only if Phase 3 step 9 wrote it (runtime=js).
 3. `.ralph/RUNBOOK.md` — if step 8 wrote it.
 4. `.ralph/progress.txt` — if step 7 wrote it.
 5. `.ralph/ralph.<ext>` — if step 6 wrote it.
