@@ -165,6 +165,27 @@ Synthesize the answers into a `prd.json` draft (per `templates/prd.json.example`
 
 Inputs locked at this point: `agent`, `runtime`, approved `prd.json` content, `qualityChecks`.
 
+### Step 0 — Overwrite cleanup (only when conflict prompt picked `[O]`)
+
+When pre-flight's conflict prompt resolved to `[O]verwrite`, prior bootstrap state may include managed files that the upcoming writes won't replace. Without cleanup, leftovers violate `amendFeasible()`'s "exactly one runtime file present" invariant and prevent future amend mode from working.
+
+Before any Phase 3 write, run this cleanup. If any deletion fails (e.g. permissions), abort with the failing path **before** writing new files — no partial state:
+
+1. Delete every managed runtime driver under `.ralph/` **except** the one matching the chosen `runtime`. Targets:
+   - `.ralph/ralph.sh`
+   - `.ralph/ralph.ts`
+   - `.ralph/ralph.js`
+   - `.ralph/ralph.py`
+2. Reconcile `.ralph/package.json` with the chosen `runtime`:
+   - `runtime == js` → leave for step 9 below to (re)write.
+   - `runtime != js` → delete `.ralph/package.json` if present (stale CommonJS pin from a prior js scaffold).
+3. Leave `prd.json`, `.ralph/prompt.md`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt` in place — the upcoming writes overwrite them deterministically.
+4. Never touch runtime-only files (`.ralph/.lock`, `.ralph/.complete`, `.ralph/.commit-failure`, `.ralph/.stop`) — those are not the SKILL's to manage.
+
+Skip Step 0 entirely on a fresh scaffold (no prior `prd.json` AND no prior `.ralph/`).
+
+### Step 1 onwards — render and write
+
 Render in this order:
 
 1. **Render `prompt.md`** from `reference/prompt.md` template:
