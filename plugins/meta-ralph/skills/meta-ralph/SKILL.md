@@ -194,8 +194,20 @@ Render in this order:
 
 1. **Render `prompt.md`** from `reference/prompt.md` template:
    - Replace `{{MEMORY_FILE}}` (multiple occurrences) with the agent's memory file (see Agent Config Table).
-   - Replace `{{QUALITY_CHECKS}}` (single occurrence) with a bullet list of the user's Q4 commands, one per line, each prefixed with `- ` and wrapped in backticks. Example:
+   - Replace `{{QUALITY_CHECKS}}` (single occurrence) with a bullet list. **Always prepend the runtime-specific `prd.json` validity check below as the FIRST bullet** (regardless of Q4 input), then append the user's Q4 commands. Each line prefixed with `- ` and wrapped in backticks.
+
+     | runtime | JSON-validity check |
+     |---|---|
+     | sh | `jq empty prd.json` |
+     | ts | `bun -e "JSON.parse(require('fs').readFileSync('prd.json','utf8'))"` |
+     | js | `node -e "JSON.parse(require('fs').readFileSync('prd.json','utf8'))"` |
+     | py | `python -c "import json; json.load(open('prd.json'))"` |
+
+     Rationale: agent corruption of `prd.json` via text-level edits (sed / regex) is a known failure mode that halts the loop next iteration. The injected check guarantees `prd.json` validity is gated by quality checks the agent cannot skip without explicitly disabling them. The agent's step 7b re-parse uses the same command.
+
+     Example (ts runtime, user Q4 = `bun run typecheck`, `bun test`, `bun run lint`):
      ```
+     - `bun -e "JSON.parse(require('fs').readFileSync('prd.json','utf8'))"`
      - `bun run typecheck`
      - `bun test`
      - `bun run lint`
