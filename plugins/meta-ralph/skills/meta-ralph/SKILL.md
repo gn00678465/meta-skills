@@ -96,6 +96,7 @@ amendFeasible() ⇔
   ∧ .ralph/prompt.md exists (required for agent detection above)
   ∧ .ralph/RUNBOOK.md exists (B1 step 4 will hash it; missing = drift baseline broken)
   ∧ .ralph/progress.txt exists (same reason as RUNBOOK.md)
+  ∧ if .ralph/ralph.js is the detected runtime, .ralph/package.json exists (B1 step 4 also hashes it under js runtime; missing = drift baseline broken)
 ```
 
 If any of the last three are missing, `amendFeasible()` returns false → conflict prompt shows 2-way only (`[O]/[X]`) with the specific missing file named, so user knows what's wrong before they pick.
@@ -359,7 +360,7 @@ Triggered when (`mode=amend` from `$ARGUMENTS` parsing) **OR** (existing-files p
    | `GEMINI.md` | `gemini` |
 
    Pre-flight already aborted on none/multiple; B1 just trusts the resolution.
-4. **Hash `.ralph/*` pre-amend state** for B4-7 drift detection. Compute `sha256` of these four files (in this exact order, for stable comparison): `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`. Store as `preAmendRalphHashes` keyed by filename.
+4. **Hash `.ralph/*` pre-amend state** for B4-7 drift detection. Compute `sha256` of these files (in this exact order, for stable comparison): `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`, and — only when the detected `runtime == js` — `.ralph/package.json`. Store as `preAmendRalphHashes` keyed by filename. (The conditional `.ralph/package.json` entry closes the js-runtime gap: append-only contract covers it just like the other four.)
 
    **Output format must be normalized to lowercase hex digest (no filename, no whitespace, no algorithm prefix)** — different host primitives return different shapes:
 
@@ -370,7 +371,7 @@ Triggered when (`mode=amend` from `$ARGUMENTS` parsing) **OR** (existing-files p
    | PowerShell `Get-FileHash -Algorithm SHA256` | `[PSCustomObject]{ Hash = "<UPPER_HEX>"; Path = ... }` | `.Hash.ToLower()` |
    | Node `crypto.createHash('sha256').update(buf).digest('hex')` | already lowercase hex | use as-is |
 
-   B4-7 compares `preAmendRalphHashes[<file>] === currentHash(<file>)`, both normalized the same way. If any of the four files don't exist at B1 time → abort (Pre-flight `amendFeasible()` should have caught this; defensive check here in case of TOCTOU).
+   B4-7 compares `preAmendRalphHashes[<file>] === currentHash(<file>)`, both normalized the same way. If any of the four core files don't exist at B1 time → abort. Same for `.ralph/package.json` when `runtime == js`. Pre-flight `amendFeasible()` should have caught this; defensive check here in case of TOCTOU.
 5. **Confirm with user.** Print a single line and require `y`:
    ```
    Detected: agent=<X>, runtime=<Y>. Will append new stories to prd.json (existing .ralph/* untouched). Continue? (y/n)
@@ -419,7 +420,7 @@ Compare against `preAmendSnapshot` (the parsed-JSON snapshot from B1) using **de
 | B4-4 | **Priority append-to-tail invariant.** For every new story `s`: `s.priority > max(preAmendSnapshot.userStories.map(s ⇒ s.priority))`. New story priorities are pairwise unique. | hard fail — restore + abort |
 | B4-5 | All story `id` values across the whole array are unique | hard fail — restore + abort |
 | B4-6 | Total count of stories with `status === "in_progress"` is ≤ 1 (driver–agent invariant enforced by every driver template) | hard fail — restore + abort |
-| B4-7 | Sanity drift check on `.ralph/*`. For each of `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt`: file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes` captured at B1 step 4. | warn — record drifted file list, surface in closing message (do NOT restore — those files weren't supposed to change, but if they did, user must reconcile manually) |
+| B4-7 | Sanity drift check on `.ralph/*`. For each path that was hashed at B1 step 4 (the four core files always, plus `.ralph/package.json` when `runtime == js`): file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes` captured at B1 step 4. | warn — record drifted file list, surface in closing message (do NOT restore — those files weren't supposed to change, but if they did, user must reconcile manually) |
 
 **Restore procedure.** On any hard fail (B4-1..B4-6) or B3 atomic-write failure:
 1. Write `preAmendSerialized` (raw bytes from B1) to `prd.json.restore.tmp`.
