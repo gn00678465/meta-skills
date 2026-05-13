@@ -22,7 +22,7 @@ You are an autonomous coding agent iterating on a software project. The driver s
 
    Multi-category story → pick the dominant one. Genuinely ambiguous → default to `feat`.
 
-   Then update PRD: set the story's `status` to `passed`. **The driver verifies that flipping a story to `passed` is accompanied by a new git commit; do not flip without committing. Empty commits or commits unrelated to the story do not satisfy this contract — acting in bad faith breaks the loop's intent.**
+   Then update PRD: set the story's `status` to `passed`. **The driver requires every `todo|in_progress → passed` transition to be accompanied by a new, non-empty, story-relevant git commit. Don't flip without committing; don't satisfy the check with empty / unrelated commits.**
 7b. **Verify `prd.json` still parses** after the commit lands. Run the JSON-validity check that the scaffolder injected as the first bullet of "Quality Requirements" above (your runtime's `JSON.parse` one-liner). If it fails: do **not** create `.ralph/.complete`, restore `prd.json` via the parse → mutate → serialize procedure (re-applying only the `status` flip you intended), `git commit --amend` (or follow-up commit) with the same message, then exit non-zero so the driver triggers commit-failure recovery instead of advancing.
 8. **Append progress** to `.ralph/progress.txt` (see "Progress Report Format" below).
 9. **If you cannot proceed** on this story (missing info, external dependency you can't acquire, ambiguous requirement that needs human judgment) — set its `status` to `blocked`, append a brief blocker reason to its `notes` field, and pick the next available story instead. **Do not set `passed` for a story you didn't actually complete.**
@@ -44,38 +44,36 @@ ALL must pass before committing. If any fails, fix the underlying issue and re-r
 
 ## Commit Repair
 
-The driver detects "agent exited non-zero AND working tree dirty AND HEAD didn't move" as a **commit failure** (typically a pre-commit hook, lint gate, type error, or signing problem stopped `git commit`). Instead of `git reset --hard`-ing your work away, the driver **preserves the working tree** and writes `.ralph/.commit-failure` (a JSON file with `retry`, `timestamp`, `iteration`).
+The driver writes `.ralph/.commit-failure` (JSON `{retry, timestamp, iteration}`) when the iteration's commit fails (agent exit ≠ 0 + dirty working tree + HEAD didn't move — typically pre-commit hook, lint, type, or signing). The working tree is preserved.
 
-**At iteration start, check whether `.ralph/.commit-failure` exists.** If it does, the *only* legal work this iteration is repair:
+If `.ralph/.commit-failure` exists at iteration start, repair is the **only** work this iteration:
 
-1. **Read the sentinel** to see which retry attempt this is. The JSON has shape `{"retry": N, "timestamp": "...", "iteration": M}`. **`retry` tells you whether you're on attempt 1, 2, or 3.** If `retry === 3`, this is your last chance before the driver aborts with `COMMIT REPAIR EXHAUSTED` — bias toward marking the story `blocked` instead of trying again on the same approach.
-2. **Diagnose.** Run `git status --short` and `git diff` to see the half-finished work. Look at the recent stderr / hook output if you saved any context (e.g. via `progress.txt`).
-3. **Fix the root cause.** Examples: rerun the failing pre-commit hook locally and address its complaint (`npm run lint --fix`, `pytest`, `cargo fmt`, etc.); install a missing `gpg` key for signed commits; add a missing test file the hook expected.
-4. **Re-run all `Quality Requirements`** (typecheck / lint / test) until they pass.
-5. **`git commit`** with the message you intended last time. Same story id, same shape.
-6. **Delete the sentinel:** `rm .ralph/.commit-failure` (or your runtime's equivalent). The driver also auto-cleans the sentinel at iteration end whenever the working tree is clean (defensive backstop for forgetful agents), so forgetting `rm` won't burn a retry slot — but explicit deletion is the contract and makes intent clear in `progress.txt` history.
-7. **End the iteration without picking a new story.** Repair is the entire iteration's work; the story you were on stays `in_progress` until repair completes.
+1. **Read the sentinel.** `retry` is 1/2/3; on `retry === 3`, bias toward marking the story `blocked` (see retry-budget block below) rather than another same-approach attempt.
+2. **Diagnose.** `git status --short` + `git diff`; consult any context you previously saved in `progress.txt`.
+3. **Fix the root cause** (rerun the failing hook locally, address its complaint, install missing keys, add missing test files, etc.).
+4. **Re-run all Quality Requirements** until clean.
+5. **`git commit`** with the same message you intended last time.
+6. **`rm .ralph/.commit-failure`.** (Driver also auto-cleans on clean tree at iteration end as backstop; explicit `rm` is still the contract.)
+7. **End the iteration without picking a new story.** Repair consumes the whole iteration; the story stays `in_progress`.
 
-**Retry budget: 3.** If `.commit-failure.retry === 3` and you don't see a clear path to fix the root cause, do **not** burn the third retry on the same broken approach. Instead:
+**Retry budget: 3.** On `retry === 3` without a clear fix path, convert to blocked rather than waste the slot:
 
-- Open `prd.json`, flip the relevant story `status: blocked`, write the blocker reason to its `notes`
-- `git restore --staged . && git restore .` to drop the half-finished code
-- `rm .ralph/.commit-failure`
-- Commit the PRD edit (`git commit -m "chore: block US-NNN pending <reason>"`)
-- End the iteration
+- Flip the story `status: blocked`, write the blocker reason to `notes`.
+- `git restore --staged . && git restore .` to drop the half-finished code.
+- `rm .ralph/.commit-failure`.
+- Commit the PRD edit (`chore: block US-NNN pending <reason>`).
+- End the iteration.
 
-This converts a commit-repair-exhausted abort into a clean blocked state the user can investigate.
-
-If `.ralph/.commit-failure` does NOT exist at iteration start, proceed with normal story-picking.
+If `.ralph/.commit-failure` does NOT exist, proceed with normal story-picking.
 
 ## Stop Condition
 
-After completing your story (or determining all remaining stories are `passed`):
+After completing your story:
 
-- **If ALL stories have `status: passed`:** create an empty file `.ralph/.complete` (e.g. `touch .ralph/.complete` on Unix; equivalent in your runtime). Then end your response. The driver detects this file as the stop signal AND cross-checks PRD status — both must agree before the driver exits successfully.
-- **Otherwise:** end your response normally. The driver will start the next iteration with a fresh agent instance.
+- If **every** story is `status: passed`: create an empty `.ralph/.complete` (`touch` or runtime equivalent) and end. The driver detects this AND cross-checks PRD status — both must agree.
+- Otherwise: just end. The driver starts the next iteration with a fresh agent.
 
-⚠️ **Do NOT create `.ralph/.complete` unless every story is `status: passed`.** The driver will reject the run as inconsistent and abort with an error.
+⚠️ Never create `.ralph/.complete` while any story is non-`passed`; the driver aborts inconsistent runs.
 
 ## Progress Report Format
 
@@ -96,56 +94,21 @@ The learnings section is critical — it helps future iterations avoid repeating
 
 ## Consolidate Patterns
 
-If you discover a **reusable pattern** that future iterations should know, add a one-liner to the `## Codebase Patterns` section at the TOP of `.ralph/progress.txt` (the file is seeded with this header). Keep entries general and reusable, not story-specific.
-
-```
-## Codebase Patterns
-- Use sql<number> template for aggregations
-- Always use IF NOT EXISTS for migrations
-- Export types from actions.ts for UI components
-```
-
-Only add patterns that are genuinely cross-cutting. Story-specific details belong in the per-iteration progress block, not here.
+Cross-cutting reusable patterns go as one-liners under the `## Codebase Patterns` header at the TOP of `.ralph/progress.txt` (seeded by the scaffolder). Examples: "Use `sql<n>` template for aggregations", "Always `IF NOT EXISTS` for migrations", "Export types from `actions.ts` for UI components". Story-specific details belong in the per-iteration block, not here.
 
 ## Update {{MEMORY_FILE}}
 
-Before committing, check if any edited files have learnings worth preserving in the project's `{{MEMORY_FILE}}` files (one or more may exist at various directory levels):
+Before committing, for each directory holding edited files: check for an existing `{{MEMORY_FILE}}` in that directory or a parent. If you found **genuinely reusable** knowledge for future work in that area — API pattern, non-obvious gotcha, file dependency, testing approach, config requirement — append it.
 
-1. **Identify directories with edited files.**
-2. **Check for existing `{{MEMORY_FILE}}`** in those directories or parent directories.
-3. **Add valuable learnings** if you discovered something future developers / agents should know:
-   - API patterns or conventions specific to that module
-   - Gotchas or non-obvious requirements
-   - Dependencies between files
-   - Testing approaches for that area
-   - Configuration or environment requirements
-
-**Examples of good additions:**
-- "When modifying X, also update Y to keep them in sync."
-- "This module uses pattern Z for all API calls."
-- "Tests require the dev server running on port 3000."
-
-**Do NOT add:**
-- Story-specific implementation details (those belong in `.ralph/progress.txt`)
-- Temporary debugging notes
-- Information already documented elsewhere
-
-Only update `{{MEMORY_FILE}}` if you have **genuinely reusable knowledge** that would help future work in that directory.
+- Good: "When modifying X, also update Y." / "This module uses pattern Z for API calls." / "Tests require dev server on port 3000."
+- Skip: story-specific implementation details (those go to `.ralph/progress.txt`), debugging notes, info already documented elsewhere.
 
 ## Browser Testing (if available)
 
-For any story that changes UI, verify it works in the browser if browser testing tools are available (e.g., via MCP):
-
-1. Navigate to the relevant page.
-2. Verify the UI changes work as expected.
-3. Take a screenshot if helpful for the progress log.
-
-If no browser tools are available, note in your progress report that manual browser verification is needed.
+For UI stories: if browser tools are available (e.g. via MCP), navigate to the page, verify the change, optionally screenshot for the progress log. If unavailable, note in your progress report that manual browser verification is still pending.
 
 ## Important Reminders
 
-- **Work on ONE story per iteration.** Do not bundle multiple stories into one commit.
-- **Commit only when quality checks pass.** Broken builds in main loop iterations cascade quickly.
-- **Read `## Codebase Patterns` first.** It is the consolidated memory across all prior iterations.
-- **When uncertain, prefer `blocked` over guessing.** The user can unblock by editing prd.json and resetting `status` to `todo`. A wrongly-`passed` story corrupts the loop's accounting.
-- **Stay inside the contract.** The driver's invariant checks (commit-verify, single-in_progress, schema-valid, sentinel cross-check) are not suggestions — violations abort the run.
+- **One story per iteration; one commit.** No bundling.
+- **Prefer `blocked` over guessing.** A wrongly-`passed` story corrupts the loop's accounting; the user can flip it back via prd.json.
+- **The driver's invariants are not suggestions** — commit-verify, single-in_progress, schema-valid, sentinel cross-check — violations abort the run.
