@@ -267,6 +267,33 @@ Arguments (any order):
 Notes:
 - `PROMPT` in the argv form is a **bare identifier**, not a string literal. The ts/js/py templates resolve it at runtime by reading `.ralph/prompt.md`.
 - v1 only supports these 3 agents. Adding a new agent requires extending this table with all 3 fields (`memoryFile`, `shellForm`, `argv`), not just one.
+- The scaffolder **does not** write a `runner` field into `prd.json` by default — users add it themselves when they want to override the baked invocation. See "Runtime override" below.
+
+## Runtime override (`prd.json.runner`)
+
+Users can override the scaffold-time baked agent invocation by adding an optional `runner` object to `prd.json`. This lets them swap CLI binary, change model, or add flags without re-scaffolding.
+
+Schema (enforced by both `prd.schema.json` and runtime validation in all 4 drivers):
+
+```json
+{
+  "runner": {
+    "command": "claude",
+    "args": ["-p", "{PROMPT}", "--model", "opus", "--dangerously-skip-permissions"]
+  }
+}
+```
+
+Rules:
+
+- **All-or-nothing**: when `runner` is present, both `command` (non-empty string) and `args` (non-empty array of non-empty strings) are required. Partial override is rejected at schema and runtime.
+- **`{PROMPT}` sentinel**: the literal string `"{PROMPT}"` inside `args` is replaced at runtime with the contents of `.ralph/prompt.md`. If absent, the prompt is appended at the end as a positional argument with a stderr warning.
+- **Precedence**: driver CLI flags (e.g. `--model X`) still append to the resolved args, so last-flag-wins agents honor CLI overrides. Effective order: CLI flags > `runner.args` > scaffold-time baked default.
+- **Per-iteration validation**: the runner shape is re-checked each iteration (same as other prd.json fields). Agents that corrupt `runner` mid-loop trigger an abort.
+- **Security**: `runner.command` controls process execution. In a shared repo, treat edits to `runner` like code changes — review them in PRs.
+- **sh driver dependency**: parsing `runner` from `prd.json` uses `jq`, which the sh driver already requires.
+
+The scaffolder does not auto-emit `runner` because the baked invocation is the documented default. `templates/prd.json.example` includes a `runner` block purely as documentation.
 
 ## Mode B — Amend (append user stories)
 

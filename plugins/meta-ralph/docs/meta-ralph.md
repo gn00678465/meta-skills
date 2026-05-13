@@ -67,6 +67,26 @@ After scaffolding the skill prints the exact start command for your chosen runti
 
 For long runs (>30 min): suppress OS sleep before launching the driver — suspend will freeze the agent process and corrupt the iteration on resume. See `docs/meta-ralph-spec.md` §7.3 for OS-specific commands.
 
+## Runtime override via `prd.json.runner`
+
+If you need to switch agent CLI, change model, or tweak flags without re-running the skill, add a `runner` block to `prd.json`:
+
+```json
+{
+  "runner": {
+    "command": "claude",
+    "args": ["-p", "{PROMPT}", "--model", "opus", "--dangerously-skip-permissions"]
+  }
+}
+```
+
+- All-or-nothing: both `command` and `args` required when `runner` is present (schema-enforced).
+- Use `"{PROMPT}"` as the placeholder for the prompt content (`.ralph/prompt.md`); the driver replaces it at runtime. If missing, prompt is appended at end with a warning.
+- Effective precedence: driver CLI flag (e.g. `--model X`) > `runner.args` > scaffold-time baked default.
+- All 4 driver runtimes (`sh` / `ts` / `js` / `py`) honor the override; sh uses the existing `jq` dependency to parse it.
+
+Security note: `runner.command` controls process execution. Treat `prd.json` edits in PRs the same way you'd treat code changes.
+
 ## Further reading
 
 - `SKILL.md` — full skill spec (bootstrap phases, amend phases, pre-flight checks, verification table).
