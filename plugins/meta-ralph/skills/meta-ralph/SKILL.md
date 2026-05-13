@@ -171,7 +171,7 @@ Inputs locked at this point: `agent`, `runtime`, approved `prd.json` content, `q
 
 When pre-flight's conflict prompt resolved to `[O]verwrite`, prior bootstrap state may include managed files that the upcoming writes won't replace. Without cleanup, leftovers violate `amendFeasible()`'s "exactly one runtime file present" invariant and prevent future amend mode from working.
 
-Before any Phase 3 write, run this cleanup. If any deletion fails (e.g. permissions), abort with the failing path **before** writing new files — no partial state:
+Before any Phase 3 write, run this cleanup. Treat "file does not exist" (ENOENT) as a successful no-op — fresh-runtime overwrite legitimately deletes drivers that were never there. Only abort if a deletion fails for some other reason (e.g. permissions, locked file, I/O error), with the failing path **before** writing new files — no partial state:
 
 1. Delete every managed runtime driver under `.ralph/` **except** the one matching the chosen `runtime`. Targets:
    - `.ralph/ralph.sh`
