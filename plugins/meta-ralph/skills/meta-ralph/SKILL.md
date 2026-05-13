@@ -219,7 +219,22 @@ Render in this order:
    ```
    If `.gitignore` already contains these lines, skip — don't duplicate. Notes: `.commit-failure` is the v1.1 commit-repair sentinel (see spec §12 Issue #15); driver writes it on commit failure, agent deletes it after successful repair, so it's runtime-only and never tracked. `.stop` is the v1.2 graceful-stop sentinel (see spec §12 Issue #12); user touches it from another terminal to make the driver exit cleanly after the current iteration.
 
-If any write fails, attempt best-effort rollback of files this Phase already created, then abort with the error.
+### Rollback on failure
+
+If any Phase 3 write fails, perform this rollback before aborting (mirrors Phase 3's write order, deleting only what *this* Phase actually created in *this* run). Track each successful write in memory; on failure, delete those tracked files in reverse order, then re-raise the original error.
+
+Candidate paths to remove, in reverse Phase 3 order:
+
+1. `.ralph/package.json` — only if Phase 3 step 9 wrote it (runtime=js).
+2. `.gitignore` block — if step 10 appended the ralph block, strip those exact lines (do not delete pre-existing `.gitignore` content).
+3. `.ralph/RUNBOOK.md` — if step 8 wrote it.
+4. `.ralph/progress.txt` — if step 7 wrote it.
+5. `.ralph/ralph.<ext>` — if step 6 wrote it.
+6. `.ralph/prompt.md` — if step 5 wrote it.
+7. `.ralph/` directory — only if step 4 created it AND it is now empty (do not remove a pre-existing `.ralph/` left untouched by overwrite).
+8. `prd.json` — only if step 3 created it on a fresh scaffold (do not delete an existing user-authored `prd.json` that step 3 overwrote — refuse to delete what the user already owned).
+
+Never remove runtime-only sentinels (`.lock`, `.complete`, `.commit-failure`, `.stop`) during rollback. If any deletion itself fails, log the path and continue with the rest — surface both the original write error and the rollback failures in the abort message.
 
 ## Phase 4 — Verification (passive checks)
 
