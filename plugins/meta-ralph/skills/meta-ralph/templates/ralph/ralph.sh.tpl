@@ -149,10 +149,13 @@ STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 MODEL_ARGS=()
 [[ -n "$MODEL" ]] && MODEL_ARGS=("--model" "$MODEL")
 
-# Resolve agent invocation from prd.json runner (mandatory). When CLI --model is given,
-# strip --model / --model=* / -m / -m=* tokens from runner.args (B3 strip-then-append)
-# so MODEL_ARGS is a true override rather than a duplicate-and-hope. '{PROMPT}' inside
-# runner.args is substituted with the prompt content; if missing, prompt is appended at end.
+# resolve_runner_for_iter — re-read prd.json.runner + .ralph/prompt.md each iteration
+# so they are the per-iteration single source of truth (schema + SPEC §8 / §8.1).
+# Mid-loop edits take effect on the next iteration without restarting the driver.
+#
+# Sets globals: RUNNER_CMD, RUNNER_ARGS, STRIPPED_COUNT, HAS_SENTINEL.
+# Reads globals: MODEL.
+# Exits on dangling --model/-m flag (EXIT trap fires print_summary).
 #
 # Three Windows / cross-runtime pitfalls handled here (eval iteration-1 caught them):
 #   1. `$(jq -r ...)` for command is safe — $() strips trailing whitespace incl. CRLF.
@@ -165,51 +168,49 @@ MODEL_ARGS=()
 #      `jq -j ... + "\u0000"` + `read -d ''` makes NUL the only separator, so embedded
 #      `\n` inside an arg stays in that arg. `tr -d '\r'` strips Windows jq's CRLF
 #      translation of in-string `\n` bytes (no legitimate arg should contain CR).
-RUNNER_CMD=$(jq -r '.runner.command' prd.json | tr -d '\r')
-PROMPT_CONTENT=$(cat .ralph/prompt.md; printf x)
-PROMPT_CONTENT=${PROMPT_CONTENT%x}
-RAW_ARGS=()
-while IFS= read -r -d '' _a; do RAW_ARGS+=("$_a"); done < <(jq -j '.runner.args[] + "\u0000"' prd.json | tr -d '\r')
-RUNNER_ARGS=()
-HAS_SENTINEL=0
-STRIPPED_COUNT=0
-_i=0
-_n=${#RAW_ARGS[@]}
-while (( _i < _n )); do
-  _a="${RAW_ARGS[_i]}"
-  if [[ -n "$MODEL" ]]; then
-    case "$_a" in
-      --model|-m)
-        if (( _i + 1 >= _n )); then
-          echo "❌ prd.json.runner.args has dangling '$_a' with no value" >&2
-          exit 1
-        fi
-        STRIPPED_COUNT=$(( STRIPPED_COUNT + 1 ))
-        _i=$(( _i + 2 ))
-        continue
-        ;;
-      --model=*|-m=*)
-        STRIPPED_COUNT=$(( STRIPPED_COUNT + 1 ))
-        _i=$(( _i + 1 ))
-        continue
-        ;;
-    esac
+resolve_runner_for_iter() {
+  RUNNER_CMD=$(jq -r '.runner.command' prd.json | tr -d '\r')
+  local _prompt
+  _prompt=$(cat .ralph/prompt.md; printf x)
+  _prompt=${_prompt%x}
+  local _raw=()
+  while IFS= read -r -d '' _a; do _raw+=("$_a"); done < <(jq -j '.runner.args[] + "\u0000"' prd.json | tr -d '\r')
+  RUNNER_ARGS=()
+  HAS_SENTINEL=0
+  STRIPPED_COUNT=0
+  local _i=0 _n=${#_raw[@]} _a
+  while (( _i < _n )); do
+    _a="${_raw[_i]}"
+    if [[ -n "$MODEL" ]]; then
+      case "$_a" in
+        --model|-m)
+          if (( _i + 1 >= _n )); then
+            echo "❌ prd.json.runner.args has dangling '$_a' with no value" >&2
+            exit 1
+          fi
+          STRIPPED_COUNT=$(( STRIPPED_COUNT + 1 ))
+          _i=$(( _i + 2 ))
+          continue
+          ;;
+        --model=*|-m=*)
+          STRIPPED_COUNT=$(( STRIPPED_COUNT + 1 ))
+          _i=$(( _i + 1 ))
+          continue
+          ;;
+      esac
+    fi
+    if [[ "$_a" == "{PROMPT}" ]]; then
+      RUNNER_ARGS+=("$_prompt")
+      HAS_SENTINEL=1
+    else
+      RUNNER_ARGS+=("$_a")
+    fi
+    _i=$(( _i + 1 ))
+  done
+  if (( HAS_SENTINEL == 0 )); then
+    RUNNER_ARGS+=("$_prompt")
   fi
-  if [[ "$_a" == "{PROMPT}" ]]; then
-    RUNNER_ARGS+=("$PROMPT_CONTENT")
-    HAS_SENTINEL=1
-  else
-    RUNNER_ARGS+=("$_a")
-  fi
-  _i=$(( _i + 1 ))
-done
-if (( HAS_SENTINEL == 0 )); then
-  echo "⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end." >&2
-  RUNNER_ARGS+=("$PROMPT_CONTENT")
-fi
-if (( STRIPPED_COUNT > 0 )); then
-  echo "ℹ️  Stripped $STRIPPED_COUNT --model/-m flag(s) from runner.args; CLI --model $MODEL overrides." >&2
-fi
+}
 
 # Exit summary printer — invoked via EXIT trap on every termination path.
 # Robust against early-exit scenarios where INITIAL_SHA/STARTED_AT may be empty.
@@ -297,9 +298,21 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
     exit 2
   fi
 
+  # 10b''. Re-resolve runner.command/args + prompt for this iteration (schema SSOT).
+  # Mid-loop edits to prd.json.runner or .ralph/prompt.md take effect from next iter.
+  resolve_runner_for_iter
+  if (( i == 1 )); then
+    if (( HAS_SENTINEL == 0 )); then
+      echo "⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end." >&2
+    fi
+    if (( STRIPPED_COUNT > 0 )); then
+      echo "ℹ️  Stripped $STRIPPED_COUNT --model/-m flag(s) from runner.args; CLI --model $MODEL overrides." >&2
+    fi
+  fi
+
   # 10c. invoke agent — capture exit code separately so consistency checks always run.
   # MODEL_ARGS is empty when --model not given (no extra flag passed to agent CLI).
-  # RUNNER_CMD/RUNNER_ARGS resolved once at startup from prd.json.runner (mandatory).
+  # RUNNER_CMD/RUNNER_ARGS re-resolved each iteration above (schema SSOT, mid-loop edits honored).
   set +e
   "$RUNNER_CMD" "${RUNNER_ARGS[@]}" "${MODEL_ARGS[@]}"
   AGENT_EXIT=$?

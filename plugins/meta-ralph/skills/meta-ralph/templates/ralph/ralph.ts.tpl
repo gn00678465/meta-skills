@@ -255,8 +255,6 @@ if (!Number.isFinite(MAX_ITERATIONS) || MAX_ITERATIONS < 1) {
   process.exit(1);
 }
 
-const PROMPT = readFileSync(".ralph/prompt.md", "utf8");
-
 // Strip --model / --model=* / -m / -m=* tokens (and their separate values) from args.
 // Returns the filtered list and a count of stripped flag occurrences. Exits on dangling
 // --model / -m with no value following. Used only when CLI --model X overrides; without
@@ -287,23 +285,26 @@ function stripModelFlags(args: string[]): { kept: string[]; strippedCount: numbe
   return { kept, strippedCount };
 }
 
-// Resolve agent invocation from prd.json.runner (mandatory). B3 strip-then-append:
-// when CLI --model X is given, strip model selectors from runner.args first so MODEL_ARGS
-// becomes a true override. '{PROMPT}' inside runner.args is substituted with prompt
-// content; if missing, prompt is appended at end so the agent still receives it.
-const RAW_ARGS = initialPrd.runner.args;
-const { kept: STRIPPED_ARGS, strippedCount: STRIPPED_COUNT } = MODEL
-  ? stripModelFlags(RAW_ARGS)
-  : { kept: RAW_ARGS, strippedCount: 0 };
-if (STRIPPED_COUNT > 0) {
-  console.error(`ℹ️  Stripped ${STRIPPED_COUNT} --model/-m flag(s) from runner.args; CLI --model ${MODEL} overrides.`);
+// resolveRunnerForIter — re-read prd.json.runner + .ralph/prompt.md each iteration
+// so they are the per-iteration single source of truth (schema + SPEC §8 / §8.1).
+// Mid-loop edits to either file take effect on the next iteration.
+// B3 strip-then-append: when CLI --model X is given, strip model selectors from
+// runner.args first so MODEL_ARGS becomes a true override.
+function resolveRunnerForIter(prd: typeof initialPrd): {
+  argv: string[];
+  strippedCount: number;
+  hasSentinel: boolean;
+} {
+  const prompt = readFileSync(".ralph/prompt.md", "utf8");
+  const rawArgs = prd.runner.args;
+  const { kept: strippedArgs, strippedCount } = MODEL
+    ? stripModelFlags(rawArgs)
+    : { kept: rawArgs, strippedCount: 0 };
+  const expanded = strippedArgs.map((a) => (a === "{PROMPT}" ? prompt : a));
+  const hasSentinel = strippedArgs.some((a) => a === "{PROMPT}");
+  if (!hasSentinel) expanded.push(prompt);
+  return { argv: [prd.runner.command, ...expanded], strippedCount, hasSentinel };
 }
-const EXPANDED = STRIPPED_ARGS.map((a) => (a === "{PROMPT}" ? PROMPT : a));
-if (!STRIPPED_ARGS.some((a) => a === "{PROMPT}")) {
-  console.warn("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.");
-  EXPANDED.push(PROMPT);
-}
-const argv: string[] = [initialPrd.runner.command, ...EXPANDED];
 // MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 const MODEL_ARGS: string[] = MODEL ? ["--model", MODEL] : [];
 
@@ -362,9 +363,21 @@ while (i < MAX_ITERATIONS && !shouldStop) {
     process.exit(2);
   }
 
+  // 10b''. Re-resolve runner.command/args + prompt for this iteration (schema SSOT).
+  // Mid-loop edits to prd.json.runner or .ralph/prompt.md take effect from next iter.
+  const { argv: iterArgv, strippedCount: iterStrippedCount, hasSentinel: iterHasSentinel } = resolveRunnerForIter(before);
+  if (i === 1) {
+    if (iterStrippedCount > 0) {
+      console.error(`ℹ️  Stripped ${iterStrippedCount} --model/-m flag(s) from runner.args; CLI --model ${MODEL} overrides.`);
+    }
+    if (!iterHasSentinel) {
+      console.warn("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.");
+    }
+  }
+
   // 10c. invoke agent — synchronous, do not throw.
   // MODEL_ARGS empty when --model not given (agent runs with its own default model).
-  const result = spawnSync(argv[0], [...argv.slice(1), ...MODEL_ARGS], { stdio: "inherit" });
+  const result = spawnSync(iterArgv[0], [...iterArgv.slice(1), ...MODEL_ARGS], { stdio: "inherit" });
   const agentExit = result.status ?? 1;
 
   // 10c'. commit-failure detection (gnhf-inspired, see docs/meta-ralph-spec.md §12.2, Issue #15):

@@ -273,8 +273,6 @@ if MAX_ITERATIONS < 1:
     print(f"❌ max_iterations must be a positive integer (got: {MAX_ITERATIONS})", file=sys.stderr)
     sys.exit(1)
 
-PROMPT = Path(".ralph/prompt.md").read_text(encoding="utf-8")
-
 
 def strip_model_flags(args):
     """Strip --model / --model=* / -m / -m=* tokens (and separate values) from args.
@@ -304,26 +302,26 @@ def strip_model_flags(args):
     return kept, stripped
 
 
-# Resolve agent invocation from prd.json.runner (mandatory). B3 strip-then-append:
-# when CLI --model X is given, strip model selectors from runner.args first so MODEL_ARGS
-# becomes a true override. '{PROMPT}' inside runner.args is substituted with prompt
-# content; if missing, prompt is appended at end so the agent still receives it.
-_runner = initial_prd["runner"]
-_raw_args = _runner["args"]
-if MODEL:
-    _stripped_args, _stripped_count = strip_model_flags(_raw_args)
-    if _stripped_count > 0:
-        print(
-            f"ℹ️  Stripped {_stripped_count} --model/-m flag(s) from runner.args; CLI --model {MODEL} overrides.",
-            file=sys.stderr,
-        )
-else:
-    _stripped_args, _stripped_count = _raw_args, 0
-_expanded = [PROMPT if a == "{PROMPT}" else a for a in _stripped_args]
-if "{PROMPT}" not in _stripped_args:
-    print("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.", file=sys.stderr)
-    _expanded.append(PROMPT)
-argv = [_runner["command"]] + _expanded
+# resolve_runner_for_iter — re-read prd.json.runner + .ralph/prompt.md each iteration
+# so they are the per-iteration single source of truth (schema + SPEC §8 / §8.1).
+# Mid-loop edits to either file take effect on the next iteration.
+# B3 strip-then-append: when CLI --model X is given, strip model selectors from
+# runner.args first so MODEL_ARGS becomes a true override.
+def resolve_runner_for_iter(prd):
+    prompt = Path(".ralph/prompt.md").read_text(encoding="utf-8")
+    runner = prd["runner"]
+    raw_args = runner["args"]
+    if MODEL:
+        stripped_args, stripped_count = strip_model_flags(raw_args)
+    else:
+        stripped_args, stripped_count = raw_args, 0
+    expanded = [prompt if a == "{PROMPT}" else a for a in stripped_args]
+    has_sentinel = "{PROMPT}" in stripped_args
+    if not has_sentinel:
+        expanded.append(prompt)
+    return [runner["command"]] + expanded, stripped_count, has_sentinel
+
+
 # MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 MODEL_ARGS = ["--model", MODEL] if MODEL else []
 
@@ -386,9 +384,22 @@ while i < MAX_ITERATIONS and not _should_stop:
         print("Or accept and ship by manually flipping the relevant story to passed.", file=sys.stderr)
         sys.exit(2)
 
+    # 10b''. Re-resolve runner.command/args + prompt for this iteration (schema SSOT).
+    # Mid-loop edits to prd.json.runner or .ralph/prompt.md take effect from next iter.
+    iter_argv, iter_stripped_count, iter_has_sentinel = resolve_runner_for_iter(before)
+    if i == 1:
+        if iter_stripped_count > 0:
+            print(
+                f"ℹ️  Stripped {iter_stripped_count} --model/-m flag(s) from runner.args; "
+                f"CLI --model {MODEL} overrides.",
+                file=sys.stderr,
+            )
+        if not iter_has_sentinel:
+            print("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.", file=sys.stderr)
+
     # 10c. invoke agent — synchronous, do not raise.
     # MODEL_ARGS empty when --model not given (agent runs with its own default model).
-    result = subprocess.run(argv + MODEL_ARGS, check=False)
+    result = subprocess.run(iter_argv + MODEL_ARGS, check=False)
     agent_exit = result.returncode
 
     # 10c'. commit-failure detection (gnhf-inspired, see docs/meta-ralph-spec.md §12.2, Issue #15):

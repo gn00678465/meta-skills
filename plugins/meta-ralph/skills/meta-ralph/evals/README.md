@@ -79,11 +79,11 @@ evals/results/iteration-1/
 
 The harness itself (`run_evals.py`) only needs `python` ≥ 3.10 and `git`.
 
-## Known sh drift (under investigation)
+## sh byte-faithfulness regression tests
 
-Two scenarios that exist specifically to catch real cross-runtime drift bugs flagged during review:
+Two scenarios specifically guard against historical `sh`-only drift bugs (caught by iteration-1 of this eval, fixed in commit `78dd687`). All four runtimes now pass them; they remain as regression tests so the fixes don't quietly regress.
 
-- `prompt-trailing-newline-preserved` — `sh` driver uses `PROMPT_CONTENT=$(cat .ralph/prompt.md)` which strips trailing newlines; `ts/js/py` preserve them. Expect `sh` to fail this scenario today.
-- `embedded-newline-in-args-preserved` — `sh` driver builds `RAW_ARGS` via `jq -r '.runner.args[]' | while IFS= read -r ...`, which splits any embedded `\n` in a single arg into multiple entries; `ts/js/py` keep them as one string. Expect `sh` to fail this scenario today.
+- `prompt-trailing-newline-preserved` — `sh` driver previously used `PROMPT_CONTENT=$(cat .ralph/prompt.md)`, which stripped trailing newlines. Now uses `$(cat .ralph/prompt.md; printf x)` + `${VAR%x}` sentinel-trim to preserve trailing bytes byte-for-byte (cross-runtime parity).
+- `embedded-newline-in-args-preserved` — `sh` driver previously read `runner.args` via `jq -r '.runner.args[]' | while IFS= read -r …`, which split any embedded `\n` into multiple argv entries. Now uses NUL-delimited reads (`jq -j '.runner.args[] + "\u0000"' | tr -d '\r'` + `while IFS= read -r -d ''`) so a single `args` element containing `\n` stays one argv entry.
 
-These are the bugs the eval is designed to catch. If they pass on `sh`, the drift has been fixed.
+A third companion fix lives in the same commit: `tr -d '\r'` is piped after every `jq` output because Windows `jq.exe` text-mode emits CRLF, which non-byte-faithful `read -r` would not strip.

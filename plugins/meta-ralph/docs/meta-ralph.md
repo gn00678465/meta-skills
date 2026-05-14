@@ -2,7 +2,7 @@
 
 Pure scaffolder for the [ralph](https://ghuntley.com/ralph/) autonomous coding loop. Writes `prd.json` + `.ralph/*` into a target git repo so an agent CLI (`claude` / `copilot` / `gemini`) can iterate on the backlog until done. The skill itself never executes the loop — once scaffolded you start the driver manually.
 
-The authoritative spec is `SKILL.md`; this README is the user-facing quickstart.
+`SKILL.md` is the scaffolding procedure (Phases 1–4 / B1–B4). `docs/meta-ralph-spec.md` is the authoritative runtime contract (Driver–Agent invariants, runner block, cross-runtime mapping). This README is the user-facing quickstart.
 
 ## Two modes
 
