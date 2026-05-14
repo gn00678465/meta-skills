@@ -247,13 +247,33 @@ For amend Phase B4:
 - New stories occupy indices `[N_old, N_old + N_new)` with `status === "todo"`, `id` matching `^US-\d{3,}$`, ≥1 `acceptanceCriteria`.
 - Priorities of new stories are strictly greater than every pre-amend priority (append-to-tail, not insert-and-shift). Driver picks lowest priority first, so existing backlog runs before appended stories.
 
-### §11.2 Restore-on-failure
+### §11.2 Atomic write & restore policy
 
-If any B4 check fails, restore `prd.json` byte-for-byte from `preAmendSerialized` (captured in B1). Retry policy: rename twice with a 250ms sleep between attempts (Windows file-handle race tolerance). Second failure deletes `.tmp` and aborts with the original validation error.
+Both the amend forward write (Phase B3) and the restore-on-failure path (Phase B4) follow the same tmp-and-rename protocol.
+
+**Forward write (B3):**
+
+1. Stringify the new document with 2-space indent + trailing LF.
+2. Write to `prd.json.tmp` in the same directory as `prd.json` (same filesystem — required for an atomic rename).
+3. Best-effort `fsync` if the host provides it.
+4. Rename `prd.json.tmp` → `prd.json` (POSIX `mv -f` / Windows `Move-Item -Force`).
+5. On Windows EPERM/EACCES (file-handle race), sleep 250ms once, retry the rename.
+6. Second failure → delete `.tmp` unconditionally, abort with the original error. `prd.json` remains intact because the rename never landed.
+
+**Restore-on-failure (B4):**
+
+If any B4 hard-fail check fires, restore `prd.json` byte-for-byte from `preAmendSerialized` (captured in B1):
+
+1. Write the raw bytes to `prd.json.restore.tmp`.
+2. Rename → `prd.json` using the same retry-once-with-sleep policy as the forward write.
+3. Delete any leftover `prd.json.tmp` from B3.
+4. Print which check failed; abort non-zero.
+
+Byte-for-byte restore preserves whitespace and key order — no noise diff if the user had already committed the pre-amend state.
 
 ### §11.3 Drift sanity check (B4-7)
 
-After write, the driver re-hashes `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt` (and `.ralph/package.json` when `runtime == js`). Mismatch versus B1's `preAmendRalphHashes` is a **warn**, not a hard fail — surface drift in the closing message; user reconciles manually.
+After the B3 write lands, the amend verifier (SKILL step B4-7, not the runtime driver) re-hashes `.ralph/prompt.md`, `.ralph/ralph.<ext>`, `.ralph/RUNBOOK.md`, `.ralph/progress.txt` (and `.ralph/package.json` when `runtime == js`). Mismatch versus B1's `preAmendRalphHashes` is a **warn**, not a hard fail — surface drift in the closing message; user reconciles manually.
 
 ## §12 Driver enhancements (formerly v2 plans, now implemented)
 

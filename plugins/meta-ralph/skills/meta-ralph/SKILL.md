@@ -263,11 +263,9 @@ The script handles branch checkout itself. Make sure your working tree is clean 
 If you get stuck: read .ralph/RUNBOOK.md — it covers status inspection, graceful stop,
 intervention when the agent loops, and recovery from driver abort messages.
 
-For long runs (>30 min): suppress OS sleep before launching the driver, otherwise
-suspend will freeze the agent process and corrupt the iteration on resume.
-  - macOS:   `caffeinate -i <run command>` (or run in a separate iTerm tab)
-  - Linux:   `systemd-inhibit --what=sleep <run command>` (or disable sleep in settings)
-  - Windows: `powercfg /change standby-timeout-ac 0` before launch (restore after).
+For runs >30 min: suppress OS sleep before launching, otherwise suspend will freeze
+the agent process and corrupt the iteration on resume. See docs/meta-ralph-spec.md
+§7.3 for OS-specific commands (macOS / Linux / Windows).
 ```
 
 ### Runtime Command Table
@@ -311,18 +309,9 @@ The `runner` block in `prd.json` is **required**. It's the single source of trut
 }
 ```
 
-Rules (enforced by `prd.schema.json` + every driver):
+Contract: see `docs/meta-ralph-spec.md` §8 — required shape, `{PROMPT}` substitution, B3 strip-then-append `--model` precedence (§8.2), per-iteration revalidation (§8.1), and the `runner.command` security boundary (§8.3). All 4 runtimes implement the same strip + substitute + append helper.
 
-- **All-or-nothing shape.** `command` is a non-empty string; `args` is a non-empty array of non-empty strings.
-- **`{PROMPT}` sentinel** in `args` is replaced at runtime with `.ralph/prompt.md` content; if absent, prompt is appended at the end with a stderr warning.
-- **Precedence — driver CLI `--model X` is a true override (B3 strip-then-append):** before exec, the driver strips any `--model` / `--model=*` / `-m` / `-m=*` tokens (and their separate values) from `runner.args`, then appends `--model X` once at the end. A dangling `--model` / `-m` with no value following aborts. No reliance on agent CLI "last-flag-wins"; the spawn args contain exactly one `--model` selector.
-  - When CLI `--model` is **not** given, `runner.args` passes through verbatim (no strip).
-  - The driver prints one stderr `ℹ️ Stripped N --model/-m flag(s)…` line at startup when strip is non-trivial.
-- **Per-iteration validation** re-checks runner shape each iteration; corruption mid-loop aborts.
-- **Security:** `runner.command` controls process execution. Treat `prd.json` edits in PRs as code review — a malicious `command` change is a process-injection vector. The schema deliberately does NOT allowlist commands (we support `aider`, `cursor-agent`, custom wrappers); that puts the security burden on review.
-- sh driver parses `runner` via the `jq` dep it already has; ts / js / py validate via in-language type checks.
-
-`templates/prd.json.example` ships the canonical shape as a reference; the scaffolder always emits a working `runner` block tailored to the chosen agent.
+`templates/prd.json.example` ships the canonical shape; the scaffolder always emits a working `runner` block tailored to the chosen agent.
 
 ## Mode B — Amend (append user stories)
 
@@ -378,36 +367,22 @@ Triggered by `mode=amend` from arg parsing OR conflict prompt picking `[A]`. Pre
    - `status` = `"todo"` (always, no exceptions).
    - `notes` = omitted (defaults to empty per schema).
 2. **Build draft:** clone `preAmendSnapshot` (deep clone, not reference), push new stories onto `userStories` in question-order. Print the draft (full file) and ask: *"Append these N stories? (y / edit / abort)"*. Only proceed on `y`.
-3. **Atomic write:**
-   - Stringify with 2-space indent + trailing LF.
-   - Write to `prd.json.tmp` in the same directory (same filesystem for atomic rename).
-   - Best-effort `fsync` if the host provides it.
-   - Rename `prd.json.tmp` → `prd.json` (POSIX `mv -f` / Windows `Move-Item -Force`).
-   - On Windows, rename may EPERM/EACCES if a handle is held. **Retry once after explicit sleep** — POSIX: `sh -c 'sleep 0.25'` via Bash tool; PowerShell: `Start-Sleep -Milliseconds 250` via PowerShell tool. (The agent has no implicit sleep primitive — always go through a tool.)
-   - Second failure → delete `.tmp` unconditionally, abort with the original error (`prd.json` is intact because the rename never landed).
+3. **Atomic write:** stringify with 2-space indent + trailing LF, then write per `docs/meta-ralph-spec.md` §11.2 — tmp file in same dir, best-effort `fsync`, rename, 250ms retry once on Windows EPERM/EACCES, delete `.tmp` on second failure. (Sleep goes through a shell tool — POSIX: `sh -c 'sleep 0.25'`; PowerShell: `Start-Sleep -Milliseconds 250`.)
 
 ### Phase B4 — Verification
 
-Compare against B1's `preAmendSnapshot` using **deep-equal on parsed object structure**, not byte-equal. `preAmendSerialized` (raw bytes) is for the restore path only.
+Verify the append-only invariants in `docs/meta-ralph-spec.md` §11.1 — length, pre-amend deep-equal, new-story shape, and priority append-to-tail. Then run these SKILL-side add-on checks that §11.1 doesn't cover:
 
-| # | Check | On failure |
-|---|---|---|
-| B4-1 | `prd.json` exists and validates against `templates/prd.schema.json` | hard fail — restore + abort |
-| B4-2a | **Total length invariant.** `userStories.length === N_old + N_new` (defends against agent hallucination padding the array tail with extra entries) | hard fail — restore + abort |
-| B4-2b | For every `i ∈ [0, N_old)`: deep-equal between `userStories[i]` in the new file and `preAmendSnapshot.userStories[i]`. All other top-level fields (`project`, `branchName`, `description`) deep-equal `preAmendSnapshot`. | hard fail — restore + abort |
-| B4-3 | New stories occupy indices `[N_old, N_old + N_new)`; each has `status === "todo"`; `id` matches `^US-\d{3,}$`; `acceptanceCriteria.length ≥ 1` | hard fail — restore + abort |
-| B4-4 | **Priority append-to-tail invariant.** For every new story `s`: `s.priority > max(preAmendSnapshot.userStories.map(s ⇒ s.priority))`. New story priorities are pairwise unique. | hard fail — restore + abort |
-| B4-5 | All story `id` values across the whole array are unique | hard fail — restore + abort |
-| B4-6 | Total count of stories with `status === "in_progress"` is ≤ 1 (driver–agent invariant enforced by every driver template) | hard fail — restore + abort |
-| B4-7 | Sanity drift check on `.ralph/*`. For each path that was hashed at B1 step 4 (the four core files always, plus `.ralph/package.json` when `runtime == js`): file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes` captured at B1 step 4. | warn — record drifted file list, surface in closing message (do NOT restore — those files weren't supposed to change, but if they did, user must reconcile manually) |
+- **B4-1.** `prd.json` exists and validates against `templates/prd.schema.json`.
+- **B4-5.** All story `id` values across the whole array are unique (catches re-used ids that §11.1's new-story-only checks would miss).
+- **B4-6.** Total count of stories with `status === "in_progress"` is ≤ 1 — re-asserts §7.1 at the amend boundary.
+- **B4-7 (drift, warn-only).** For each `.ralph/*` path hashed at B1 step 4 (the four core files always, plus `.ralph/package.json` when `runtime == js`): file still exists and `sha256` (normalized lowercase hex digest) matches `preAmendRalphHashes`. Mismatch is a warn (record drifted file list, surface in closing message); do NOT restore — those files weren't supposed to change, but if they did, user reconciles manually. See §11.3.
 
-**Restore procedure** on hard-fail B4-1..B4-6 or B3 write failure:
-1. Write `preAmendSerialized` (B1's raw bytes) to `prd.json.restore.tmp`.
-2. Rename → `prd.json` (same retry-once-with-sleep policy as B3).
-3. Delete any leftover `prd.json.tmp` from B3.
-4. Print which check failed; abort non-zero.
+Deep-equal uses parsed object structure, not byte-equal. `preAmendSerialized` (raw bytes) is for the restore path only.
 
-Restores `prd.json` byte-for-byte (whitespace / key-order preserved) — avoids noise diff if the user had already committed it.
+Any hard-fail (B4-1, B4-5, B4-6, or any §11.1 invariant) → restore + abort.
+
+**Restore procedure:** see `docs/meta-ralph-spec.md` §11.2 — write `preAmendSerialized` (B1 raw bytes) to `prd.json.restore.tmp`, rename with the same retry-once-with-sleep policy as B3, delete leftover `prd.json.tmp`. Restores byte-for-byte (whitespace / key-order preserved) so no noise diff appears if user had already committed.
 
 ### Amend closing message
 
