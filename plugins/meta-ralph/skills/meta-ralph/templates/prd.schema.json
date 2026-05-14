@@ -47,6 +47,7 @@
         },
         "args": {
           "type": "array",
+          "minItems": 1,
           "items": { "type": "string", "minLength": 1 },
           "description": "Full argument list passed to <command>. Use '{PROMPT}' as a sentinel marking where the agent receives the prompt content (read from .ralph/prompt.md at runtime). Example: ['-p', '{PROMPT}', '--model', 'opus', '--dangerously-skip-permissions']."
         }

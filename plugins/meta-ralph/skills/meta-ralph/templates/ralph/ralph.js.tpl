@@ -121,7 +121,7 @@ function loadAndValidatePrd() {
       console.error("❌ prd.json.runner.command must be a non-empty string");
       process.exit(1);
     }
-    if (!Array.isArray(prd.runner.args) || prd.runner.args.some((a) => typeof a !== "string" || !a)) {
+    if (!Array.isArray(prd.runner.args) || prd.runner.args.length === 0 || prd.runner.args.some((a) => typeof a !== "string" || !a)) {
       console.error("❌ prd.json.runner.args must be a non-empty array of non-empty strings");
       process.exit(1);
     }
