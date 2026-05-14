@@ -19,14 +19,17 @@
       ]
     },
     {
-      "name": "meta-react",
-      "source": "./plugins/meta-react",
-      "description": "Scaffold React-project conventions: APM yml template, path-mapping / frontmatter-transform / install-workflow references, react-components rules, plus nested skills",
-      "category": "agentic",
+      "name": "react-ai-infra",
+      "source": "./plugins/frontend-dev/react-ai-infra",
+      "description": "Deploy cross-platform agent assets (apm.yml, bundled skills/rules, framework-specific AGENTS.md) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself.",
+      "category": "frontend",
       "tags": [
         "react",
-        "scaffolder",
-        "conventions",
+        "nextjs",
+        "tanstack",
+        "vite",
+        "apm",
+        "agent-assets",
         "skills"
       ]
     }

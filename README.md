@@ -7,7 +7,7 @@ A Claude Code plugin marketplace that ships **meta-skills** — skills that scaf
 | Plugin | Summary | Docs |
 |---|---|---|
 | `meta-ralph` | Scaffolds a [ralph](https://ghuntley.com/ralph/) autonomous coding loop (`prd.json` + `.ralph/*`) into a target git repo. Pure scaffolder; never executes the loop. | [docs/meta-ralph.md](plugins/meta-ralph/docs/meta-ralph.md) · [SKILL.md](plugins/meta-ralph/skills/meta-ralph/SKILL.md) |
-| `meta-react` | Scaffolds React-project conventions: APM `apm.yml` template, path-mapping / frontmatter-transform / install-workflow references, `react-components` rules, plus nested skills (e.g. `no-use-effect`). | [SKILL.md](plugins/meta-react/skills/meta-react/SKILL.md) |
+| `react-ai-infra` | Deploys cross-platform agent assets (APM `apm.yml`, bundled skills/rules, framework-specific `AGENTS.md`) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself. | [SKILL.md](plugins/frontend-dev/react-ai-infra/skills/react-ai-infra/SKILL.md) |
 
 ## Install
 
@@ -17,7 +17,7 @@ Add the marketplace once, then install whichever plugins you want:
 /plugin marketplace add gn00678465/meta-skills
 
 /plugin install meta-ralph@meta-skills
-/plugin install meta-react@meta-skills
+/plugin install react-ai-infra@meta-skills
 ```
 
 Local testing:
@@ -38,9 +38,10 @@ meta-skills/
     │   ├── .claude-plugin/plugin.json
     │   ├── docs/meta-ralph.md           (design + usage notes)
     │   └── skills/meta-ralph/           (ralph autonomous-loop scaffolder)
-    └── meta-react/
-        ├── .claude-plugin/plugin.json
-        └── skills/meta-react/           (React conventions scaffolder)
+    └── frontend-dev/                    (category folder, no plugin.json)
+        └── react-ai-infra/
+            ├── .claude-plugin/plugin.json
+            └── skills/react-ai-infra/   (React agent-asset deployer)
 ```
 
 ## Further reading

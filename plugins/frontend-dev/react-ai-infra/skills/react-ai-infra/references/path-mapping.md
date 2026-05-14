@@ -9,7 +9,7 @@ All destinations are resolved relative to `<project-root>` — the directory whe
 ## Source layout (this skill)
 
 ```
-meta-react/
+react-ai-infra/
 ├── SKILL.md
 ├── templates/
 │   ├── apm.yml

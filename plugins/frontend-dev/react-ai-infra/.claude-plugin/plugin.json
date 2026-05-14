@@ -1,5 +1,5 @@
 {
-  "name": "meta-react",
+  "name": "react-ai-infra",
   "version": "0.1.0",
   "description": "Deploys cross-platform agent assets (apm.yml, bundled skills/rules, framework-specific AGENTS.md) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself.",
   "author": {

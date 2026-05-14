@@ -1,6 +1,6 @@
 # Install Workflow
 
-Step-by-step procedure that the agent runs when the meta-react skill is invoked. Each step is concrete and tool-mappable. Step numbers match `SKILL.md` § What this skill does.
+Step-by-step procedure that the agent runs when the react-ai-infra skill is invoked. Each step is concrete and tool-mappable. Step numbers match `SKILL.md` § What this skill does.
 
 ## Step 0 — Verify apm is installed
 
@@ -73,7 +73,7 @@ Do NOT auto-detect from `package.json` or lockfiles. Repos can be mid-migration,
 
 If the agent runtime does not support interactive prompts (e.g. a non-interactive CI run), fail with:
 
-> meta-react requires a framework choice (nextjs / tanstack-start / vite-react). Re-run in an interactive session or pass the framework explicitly.
+> react-ai-infra requires a framework choice (nextjs / tanstack-start / vite-react). Re-run in an interactive session or pass the framework explicitly.
 
 ## Step 3 — Generate or merge apm.yml
 

@@ -2,7 +2,7 @@
 
 Bundled rules in `rules/<name>.md` use a `paths:` array that Claude Code keeps verbatim. Copilot's `.github/instructions/<name>.instructions.md` uses `applyTo:` (single comma-separated string). This file specifies how to convert one to the other.
 
-## Source format (Claude / meta-react)
+## Source format (Claude / react-ai-infra)
 
 ```yaml
 ---

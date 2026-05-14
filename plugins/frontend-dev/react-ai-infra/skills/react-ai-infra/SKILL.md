@@ -1,5 +1,5 @@
 ---
-name: meta-react
+name: react-ai-infra
 description: |
   Deploys cross-platform agent assets into an already-created React project.
   ACTIVATE when a React/Next.js/TanStack Start/Vite repo (existing or
@@ -12,7 +12,7 @@ description: |
   root. Does NOT create the React app itself.
 ---
 
-# Meta-React
+# react-ai-infra
 
 A meta-skill that wires [APM](https://github.com/microsoft/apm) (Agent Package Manager) and the team's curated React skill set into an existing React project across Claude Code and GitHub Copilot.
 
@@ -101,7 +101,7 @@ Record the chosen slug as `<framework>`. **Step 7 is the only consumer** — `ap
 
 Do NOT auto-detect. The user is the source of truth — a repo may have leftover config from a previous framework, or be mid-migration.
 
-**Non-interactive runs** (e.g. CI without a TTY): fail fast with `meta-react requires a framework choice (nextjs / tanstack-start / vite-react). Re-run in an interactive session or pass the framework explicitly.` Do not guess and do not proceed past this step.
+**Non-interactive runs** (e.g. CI without a TTY): fail fast with `react-ai-infra requires a framework choice (nextjs / tanstack-start / vite-react). Re-run in an interactive session or pass the framework explicitly.` Do not guess and do not proceed past this step.
 
 ### 3. Generate or merge `apm.yml`
 
