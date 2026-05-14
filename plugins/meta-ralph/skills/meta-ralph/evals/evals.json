@@ -1,0 +1,175 @@
+{
+  "skill_name": "meta-ralph",
+  "focus": "Driver runner block — runner-mandatory gating + B3 strip-then-append + {PROMPT} substitution + cross-runtime parity",
+  "runtimes_under_test": ["sh", "ts", "js", "py"],
+  "harness": "evals/run_evals.py — sets up a sandbox git repo per scenario, points runner.command at evals/mock-agent.py, runs the rendered driver template with max-iter=1, compares the mock's argv_dump.json against expected.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-runner-aborts",
+      "prompt": "prd.json contains valid project/branchName/description/userStories but NO runner key. Driver must abort before iter 1.",
+      "setup": {
+        "prd_runner": null,
+        "cli_model": null
+      },
+      "assertions": [
+        "driver exits non-zero",
+        "stderr contains 'missing required' (the migration message)",
+        "argv_dump.json was NOT created (mock never spawned)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "passthrough-no-cli-model",
+      "prompt": "runner.args has --model opus, no CLI --model given. argv passes through verbatim, no strip.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--model", "opus"],
+        "cli_model": null
+      },
+      "assertions": [
+        "argv ends with --model opus",
+        "{PROMPT} replaced with prompt content"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "strip-long-form",
+      "prompt": "runner.args has '--model opus', CLI --model sonnet. Driver strips 'opus' pair, appends '--model sonnet' once.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--model", "opus"],
+        "cli_model": "sonnet"
+      },
+      "assertions": [
+        "argv has exactly one --model selector",
+        "argv ends with --model sonnet",
+        "argv does NOT contain 'opus'"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "strip-equals-form",
+      "prompt": "runner.args has '--model=opus', CLI --model sonnet. Driver strips the = token, appends '--model sonnet'.",
+      "setup": {
+        "runner_args": ["--model=opus", "-p", "{PROMPT}"],
+        "cli_model": "sonnet"
+      },
+      "assertions": [
+        "argv has exactly one --model selector",
+        "argv ends with --model sonnet",
+        "argv does NOT contain '--model=opus' or 'opus'"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "strip-short-form",
+      "prompt": "runner.args has '-m opus', CLI --model sonnet. Driver strips the pair, appends '--model sonnet'.",
+      "setup": {
+        "runner_args": ["-m", "opus", "-p", "{PROMPT}"],
+        "cli_model": "sonnet"
+      },
+      "assertions": [
+        "argv has exactly one --model selector",
+        "argv ends with --model sonnet",
+        "argv does NOT contain '-m' or 'opus'"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "strip-equals-short",
+      "prompt": "runner.args has '-m=opus', CLI --model sonnet. Driver strips the token, appends '--model sonnet'.",
+      "setup": {
+        "runner_args": ["-m=opus", "-p", "{PROMPT}"],
+        "cli_model": "sonnet"
+      },
+      "assertions": [
+        "argv has exactly one --model selector",
+        "argv ends with --model sonnet",
+        "argv does NOT contain '-m=opus'"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "strip-duplicates",
+      "prompt": "runner.args has '--model a' AND '--model b' (two model flags), CLI --model c. Both stripped, c appended once.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--model", "a", "--model", "b"],
+        "cli_model": "c"
+      },
+      "assertions": [
+        "argv has exactly one --model selector",
+        "argv ends with --model c",
+        "argv contains neither 'a' nor 'b' as model values"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "dangling-aborts",
+      "prompt": "runner.args has '--model' at the very end (no value), CLI --model X given. Driver must abort the strip step.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--model"],
+        "cli_model": "sonnet"
+      },
+      "assertions": [
+        "driver exits non-zero",
+        "stderr mentions 'dangling' --model",
+        "argv_dump.json was NOT created"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "prompt-substitution",
+      "prompt": "{PROMPT} sentinel in runner.args is replaced at runtime with .ralph/prompt.md content.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--flag"],
+        "cli_model": null,
+        "prompt_content": "SENTINEL-CONTENT-A1B2C3\n"
+      },
+      "assertions": [
+        "argv element corresponding to {PROMPT} equals 'SENTINEL-CONTENT-A1B2C3\\n' EXACTLY (trailing newline preserved)",
+        "argv ends with --flag"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "prompt-missing-sentinel",
+      "prompt": "runner.args lacks {PROMPT}. Driver appends prompt content at end and emits a stderr warning.",
+      "setup": {
+        "runner_args": ["-p", "--flag"],
+        "cli_model": null,
+        "prompt_content": "SENTINEL-CONTENT-XYZ\n"
+      },
+      "assertions": [
+        "argv ends with 'SENTINEL-CONTENT-XYZ\\n' (appended after --flag)",
+        "stderr contains warning about missing '{PROMPT}' sentinel"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "prompt-trailing-newline-preserved",
+      "prompt": "Prompt content has a trailing newline. After {PROMPT} substitution, the substituted argv element must equal the file content byte-for-byte, including the trailing \\n.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}"],
+        "cli_model": null,
+        "prompt_content": "hello-world\n"
+      },
+      "assertions": [
+        "the argv element substituted from {PROMPT} equals 'hello-world\\n' exactly (length 12, ends with 0x0A)"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "embedded-newline-in-args-preserved",
+      "prompt": "runner.args has an element with an embedded \\n. After driver resolution, that element remains a SINGLE argv entry containing the newline — not split into two entries. {PROMPT} sentinel included so the prompt-append fallback doesn't contaminate the count.",
+      "setup": {
+        "runner_args": ["-p", "{PROMPT}", "--note", "line1\nline2"],
+        "cli_model": null
+      },
+      "assertions": [
+        "argv has exactly 4 elements (the mock receives -p, prompt, --note, multi-line value)",
+        "argv element 0 equals '-p'",
+        "argv element 2 equals '--note'",
+        "argv element 3 equals 'line1\\nline2' (single arg containing the newline)"
+      ]
+    }
+  ]
+}

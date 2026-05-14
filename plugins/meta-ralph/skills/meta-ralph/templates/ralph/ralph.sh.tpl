@@ -153,10 +153,23 @@ MODEL_ARGS=()
 # strip --model / --model=* / -m / -m=* tokens from runner.args (B3 strip-then-append)
 # so MODEL_ARGS is a true override rather than a duplicate-and-hope. '{PROMPT}' inside
 # runner.args is substituted with the prompt content; if missing, prompt is appended at end.
-RUNNER_CMD=$(jq -r '.runner.command' prd.json)
-PROMPT_CONTENT=$(cat .ralph/prompt.md)
+#
+# Three Windows / cross-runtime pitfalls handled here (eval iteration-1 caught them):
+#   1. `$(jq -r ...)` for command is safe — $() strips trailing whitespace incl. CRLF.
+#      `tr -d '\r'` is belt-and-braces against Windows jq.exe text-mode CR injection.
+#   2. `$(cat file)` strips trailing newlines from prompt content; ts/js/py preserve
+#      them via in-memory string reads. The `printf x` + `${VAR%x}` idiom gives bash
+#      byte-faithful file reads (the sentinel `x` survives any trailing newlines).
+#   3. `jq -r ... | while read` splits on every `\n` — a single runner.args element
+#      containing an embedded newline becomes multiple argv entries. Switching to
+#      `jq -j ... + "\u0000"` + `read -d ''` makes NUL the only separator, so embedded
+#      `\n` inside an arg stays in that arg. `tr -d '\r'` strips Windows jq's CRLF
+#      translation of in-string `\n` bytes (no legitimate arg should contain CR).
+RUNNER_CMD=$(jq -r '.runner.command' prd.json | tr -d '\r')
+PROMPT_CONTENT=$(cat .ralph/prompt.md; printf x)
+PROMPT_CONTENT=${PROMPT_CONTENT%x}
 RAW_ARGS=()
-while IFS= read -r _a; do RAW_ARGS+=("$_a"); done < <(jq -r '.runner.args[]' prd.json)
+while IFS= read -r -d '' _a; do RAW_ARGS+=("$_a"); done < <(jq -j '.runner.args[] + "\u0000"' prd.json | tr -d '\r')
 RUNNER_ARGS=()
 HAS_SENTINEL=0
 STRIPPED_COUNT=0
