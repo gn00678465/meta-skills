@@ -85,7 +85,7 @@ function loadAndValidatePrd(): {
   branchName: string;
   description: string;
   userStories: Array<{ id: string; status: string; title: string; [k: string]: unknown }>;
-  runner?: { command: string; args: string[] };
+  runner: { command: string; args: string[] };
 } {
   if (!existsSync("prd.json")) {
     console.error("❌ prd.json missing in repo root");
@@ -118,19 +118,28 @@ function loadAndValidatePrd(): {
       process.exit(1);
     }
   }
-  if (prd.runner !== undefined) {
-    if (typeof prd.runner !== "object" || prd.runner === null) {
-      console.error("❌ prd.json.runner must be an object when present");
-      process.exit(1);
-    }
-    if (typeof prd.runner.command !== "string" || !prd.runner.command) {
-      console.error("❌ prd.json.runner.command must be a non-empty string");
-      process.exit(1);
-    }
-    if (!Array.isArray(prd.runner.args) || prd.runner.args.length === 0 || prd.runner.args.some((a: unknown) => typeof a !== "string" || !a)) {
-      console.error("❌ prd.json.runner.args must be a non-empty array of non-empty strings");
-      process.exit(1);
-    }
+  if (prd.runner === undefined) {
+    console.error("❌ prd.json missing required 'runner' field.");
+    console.error("   Add this block at the top level of prd.json (example for the claude CLI):");
+    console.error('     "runner": {');
+    console.error('       "command": "claude",');
+    console.error('       "args": ["-p", "{PROMPT}", "--dangerously-skip-permissions"]');
+    console.error("     }");
+    console.error('   For copilot use command "copilot" with args ["--yolo","--allow-tools","--prompt","{PROMPT}"].');
+    console.error('   For gemini use command "gemini" with args ["-p","{PROMPT}","--yolo"].');
+    process.exit(1);
+  }
+  if (typeof prd.runner !== "object" || prd.runner === null) {
+    console.error("❌ prd.json.runner must be an object");
+    process.exit(1);
+  }
+  if (typeof prd.runner.command !== "string" || !prd.runner.command) {
+    console.error("❌ prd.json.runner.command must be a non-empty string");
+    process.exit(1);
+  }
+  if (!Array.isArray(prd.runner.args) || prd.runner.args.length === 0 || prd.runner.args.some((a: unknown) => typeof a !== "string" || !a)) {
+    console.error("❌ prd.json.runner.args must be a non-empty array of non-empty strings");
+    process.exit(1);
   }
   return prd;
 }
@@ -247,20 +256,54 @@ if (!Number.isFinite(MAX_ITERATIONS) || MAX_ITERATIONS < 1) {
 }
 
 const PROMPT = readFileSync(".ralph/prompt.md", "utf8");
-const BAKED_ARGV: string[] = {{AGENT_ARGV}};
-// prd.json runner override (all-or-nothing): replaces BAKED_ARGV when present.
-// '{PROMPT}' inside runner.args is substituted with the prompt content; if missing,
-// the prompt is appended at the end so the agent still receives it.
-const argv: string[] = (() => {
-  if (!initialPrd.runner) return BAKED_ARGV;
-  const expanded = initialPrd.runner.args.map((a) => (a === "{PROMPT}" ? PROMPT : a));
-  const hasSentinel = initialPrd.runner.args.some((a) => a === "{PROMPT}");
-  if (!hasSentinel) {
-    console.warn("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.");
-    expanded.push(PROMPT);
+
+// Strip --model / --model=* / -m / -m=* tokens (and their separate values) from args.
+// Returns the filtered list and a count of stripped flag occurrences. Exits on dangling
+// --model / -m with no value following. Used only when CLI --model X overrides; without
+// CLI override, runner.args passes through verbatim.
+function stripModelFlags(args: string[]): { kept: string[]; strippedCount: number } {
+  const kept: string[] = [];
+  let strippedCount = 0;
+  let i = 0;
+  while (i < args.length) {
+    const a = args[i];
+    if (a === "--model" || a === "-m") {
+      if (i + 1 >= args.length) {
+        console.error(`❌ prd.json.runner.args has dangling '${a}' with no value`);
+        process.exit(1);
+      }
+      strippedCount++;
+      i += 2;
+      continue;
+    }
+    if (a.startsWith("--model=") || a.startsWith("-m=")) {
+      strippedCount++;
+      i++;
+      continue;
+    }
+    kept.push(a);
+    i++;
   }
-  return [initialPrd.runner.command, ...expanded];
-})();
+  return { kept, strippedCount };
+}
+
+// Resolve agent invocation from prd.json.runner (mandatory). B3 strip-then-append:
+// when CLI --model X is given, strip model selectors from runner.args first so MODEL_ARGS
+// becomes a true override. '{PROMPT}' inside runner.args is substituted with prompt
+// content; if missing, prompt is appended at end so the agent still receives it.
+const RAW_ARGS = initialPrd.runner.args;
+const { kept: STRIPPED_ARGS, strippedCount: STRIPPED_COUNT } = MODEL
+  ? stripModelFlags(RAW_ARGS)
+  : { kept: RAW_ARGS, strippedCount: 0 };
+if (STRIPPED_COUNT > 0) {
+  console.error(`ℹ️  Stripped ${STRIPPED_COUNT} --model/-m flag(s) from runner.args; CLI --model ${MODEL} overrides.`);
+}
+const EXPANDED = STRIPPED_ARGS.map((a) => (a === "{PROMPT}" ? PROMPT : a));
+if (!STRIPPED_ARGS.some((a) => a === "{PROMPT}")) {
+  console.warn("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.");
+  EXPANDED.push(PROMPT);
+}
+const argv: string[] = [initialPrd.runner.command, ...EXPANDED];
 // MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 const MODEL_ARGS: string[] = MODEL ? ["--model", MODEL] : [];
 

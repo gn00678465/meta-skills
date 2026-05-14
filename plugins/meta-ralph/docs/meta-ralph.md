@@ -67,9 +67,9 @@ After scaffolding the skill prints the exact start command for your chosen runti
 
 For long runs (>30 min): suppress OS sleep before launching the driver — suspend will freeze the agent process and corrupt the iteration on resume. See `docs/meta-ralph-spec.md` §7.3 for OS-specific commands.
 
-## Runtime override via `prd.json.runner`
+## Runtime configuration via `prd.json.runner`
 
-If you need to switch agent CLI, change model, or tweak flags without re-running the skill, add a `runner` block to `prd.json`:
+`runner` is **required** in `prd.json` — it's the single source of truth for how the agent CLI is spawned each iteration. The scaffolder writes it for you tailored to the chosen agent; edit it later to switch CLI, change model, or tweak flags without re-running the skill:
 
 ```json
 {
@@ -80,12 +80,14 @@ If you need to switch agent CLI, change model, or tweak flags without re-running
 }
 ```
 
-- All-or-nothing: both `command` and `args` required when `runner` is present (schema-enforced).
-- Use `"{PROMPT}"` as the placeholder for the prompt content (`.ralph/prompt.md`); the driver replaces it at runtime. If missing, prompt is appended at end with a warning.
-- Effective precedence: driver CLI flag (e.g. `--model X`) > `runner.args` > scaffold-time baked default.
-- All 4 driver runtimes (`sh` / `ts` / `js` / `py`) honor the override; sh uses the existing `jq` dependency to parse it.
+- Both `command` (non-empty string) and `args` (non-empty array of non-empty strings) are required (schema-enforced).
+- Use `"{PROMPT}"` as the placeholder for the prompt content (`.ralph/prompt.md`); the driver replaces it at runtime. If missing, prompt is appended at the end with a warning.
+- **`--model X` is a true override (B3 strip-then-append):** when you run the driver with `--model X`, it strips any existing `--model` / `--model=*` / `-m` / `-m=*` tokens from `runner.args` (and their values), then appends `--model X` once. Without the CLI flag, `runner.args` passes through verbatim. The spawn args always contain at most one `--model` selector — no reliance on agent "last-flag-wins" behavior.
+- All 4 driver runtimes (`sh` / `ts` / `js` / `py`) implement identical strip + substitute + append logic. `sh` parses via `jq`; `ts` / `js` / `py` validate via in-language type checks.
 
-Security note: `runner.command` controls process execution. Treat `prd.json` edits in PRs the same way you'd treat code changes.
+Security note: `runner.command` controls process execution. Treat `prd.json` edits in PRs the same way you'd treat code changes — a malicious `command` change is a process-injection vector. The schema deliberately keeps `command` open-ended (so `aider`, `cursor-agent`, custom wrappers still work); the security burden lives in code review.
+
+Migration (existing PRDs scaffolded before runner was mandatory): driver and amend mode both abort with a message that includes the exact JSON block to paste in. Add the `runner` block (see Agent / runtime matrix above for the default per agent), commit, and re-run.
 
 ## Further reading
 

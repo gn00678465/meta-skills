@@ -103,9 +103,9 @@ If any of the last three are missing, `amendFeasible()` returns false → confli
 | cwd is a git repo (`git rev-parse --git-dir` succeeds) | abort | abort |
 | `prd.json` exists at repo root | (see "conflict prompt" row) | required (else abort per §Invocation) |
 | `.ralph/` directory exists | (see "conflict prompt" row) | required (else abort: scaffold first) |
-| **Conflict prompt** — `mode=bootstrap` AND (`prd.json` exists OR `.ralph/` exists) | `.ralph/.lock` exists: refuse to prompt; abort with the lock message (see row below) — neither `[A]` nor `[O]` is safe under a live driver. <br>Else if `amendFeasible()`: 3-way `[A]mend / [O]verwrite (destroys progress) / [X]Cancel`. `A` → flip to amend; `O` → continue bootstrap; `X` → abort. <br>Else: 2-way `[O]/[X]`, **and name the specific reason `[A]` is unavailable** (e.g. "prd.json schema-invalid", "agent token unresolved"). Don't silently swallow the option. | n/a |
+| **Conflict prompt** — `mode=bootstrap` AND (`prd.json` exists OR `.ralph/` exists) | `.ralph/.lock` exists: refuse to prompt; abort with the lock message (see row below) — neither `[A]` nor `[O]` is safe under a live driver. <br>Else if `amendFeasible()`: 3-way `[A]mend / [O]verwrite (destroys progress) / [X]Cancel`. `A` → flip to amend; `O` → continue bootstrap; `X` → abort. <br>Else: 2-way `[O]/[X]`, **and name the specific reason `[A]` is unavailable** (e.g. "prd.json schema-invalid", "agent token unresolved", "prd.json missing required `runner` field — add it manually then amend"). Don't silently swallow the option. | n/a |
 | `.ralph/.lock` exists | Fresh bootstrap (no prior `.ralph/`): n/a. <br>Overwrite bootstrap: abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before re-running meta-ralph."* The conflict-prompt row above refuses entirely when `.lock` exists; this row is the reason for that gate. | abort: *"ralph driver appears to be running. Stop it (or `rm .ralph/.lock` if stale) before amending."* |
-| `prd.json` validates against `templates/prd.schema.json` | n/a | abort if invalid — refuse to amend a corrupt PRD |
+| `prd.json` validates against `templates/prd.schema.json` | n/a | abort if invalid — refuse to amend a corrupt PRD. **Migration note:** PRDs scaffolded before `runner` was made mandatory will fail here with "missing required property: runner". Report it as a migration error and tell the user to add the runner block (see Agent Config Table for the correct shape per agent), then re-run amend. |
 | `prd.json` has ≤ 1 story with `status: in_progress` | n/a | abort — driver-agent invariant violation; user must reconcile |
 | Exactly one runtime file under `.ralph/` (`ralph.sh xor .ts xor .js xor .py`) | n/a | abort — print which files were found; ask user to remove the spurious one(s) |
 | `.ralph/prompt.md` references exactly one memory file (`CLAUDE.md / AGENTS.md / GEMINI.md`) | n/a | abort — token unresolved (none/multiple); ask user to confirm intended agent |
@@ -184,10 +184,8 @@ Render in this order:
 
      Rationale: text-level edits to `prd.json` (sed / regex) are a known agent-failure mode that halts the loop next iteration. Prepending this check makes `prd.json` validity a quality gate the agent can't skip; step 7b in the rendered prompt.md re-runs the same command after commit.
 
-2. **Render `ralph.<ext>`** from `templates/ralph/ralph.<ext>.tpl`:
-   - `sh`: replace `{{AGENT_CLI}}` with the agent's `shellForm`.
-   - `ts` / `js` / `py`: replace `{{AGENT_ARGV}}` with the agent's `argv` array (`PROMPT` stays as a bare identifier — the runtime reads `.ralph/prompt.md` and binds it).
-3. **Write `prd.json`** to repo root.
+2. **Write `ralph.<ext>`** verbatim from `templates/ralph/ralph.<ext>.tpl`. The templates contain no agent placeholders — every driver reads `prd.json.runner` (mandatory) for the agent invocation, so no per-agent substitution happens here.
+3. **Write `prd.json`** to repo root. Build the document from the approved Phase 2 content plus the **runner** block derived from the chosen agent (see Agent Config Table below). Runner is required by the schema and by every driver.
 4. **Create `.ralph/`** if missing.
 5. **Write `.ralph/prompt.md`** (rendered step 1).
 6. **Write `.ralph/ralph.<ext>`** (rendered step 2). Force LF. `chmod +x` on Unix (no-op on Windows; ts/js/py run via interpreter regardless).
@@ -235,7 +233,8 @@ This table is the executable form of the §Output contract at the top of this fi
 | 1 | `prd.json` exists at repo root | abort |
 | 2 | `prd.json` validates against `templates/prd.schema.json` (full JSON Schema validation) | abort |
 | 3 | `.ralph/prompt.md` exists; no `{{MEMORY_FILE}}` or `{{QUALITY_CHECKS}}` substring remains | abort |
-| 4 | `.ralph/ralph.<ext>` exists, executable on Unix, no `{{AGENT_CLI}}` or `{{AGENT_ARGV}}` substring remains | abort |
+| 4 | `.ralph/ralph.<ext>` exists, executable on Unix | abort |
+| 4b | `prd.json.runner` exists with `{command: <non-empty string>, args: <non-empty array of non-empty strings>}` | abort |
 | 5 | `.ralph/progress.txt` exists and starts with `## Codebase Patterns` | abort |
 | 6 | `.gitignore` contains all 5 ralph runtime lines (`.ralph/progress.txt`, `.ralph/.lock`, `.ralph/.complete`, `.ralph/.commit-failure`, `.ralph/.stop`) | abort |
 | 7 | (Runtime=js only) `.ralph/package.json` exists with `"type": "commonjs"` | abort |
@@ -282,24 +281,26 @@ suspend will freeze the agent process and corrupt the iteration on resume.
 
 Arguments (any order):
 - `[N]` — optional max-iterations; default 10
-- `[--model X]` — optional `--model X` flag passed through to the agent CLI (claude / copilot / gemini all accept `--model`); when omitted, the agent uses its own default model. Supports both `--model X` and `--model=X` syntax.
+- `[--model X]` — optional model selector. Driver passes `--model X` to the agent CLI (claude / copilot / gemini all accept `--model`). When `runner.args` already contains `--model` / `--model=*` / `-m` / `-m=*`, the driver strips those (and their values) before appending the CLI's `--model X` — so this flag is a **true override**, not a duplicate-and-hope. When omitted, `runner.args` passes through verbatim. Supports both `--model X` and `--model=X` syntax.
 
 ## Agent Config Table (data the SKILL needs)
 
-| Agent | memoryFile | shellForm (sh template) | argv (ts/js/py templates) |
+The scaffolder writes the `runner` block into `prd.json` using the columns below. Drivers consume `runner.command` + `runner.args` verbatim every iteration (no baked default in the driver template; `runner` is mandatory).
+
+| Agent | memoryFile | runner.command | runner.args (JSON array literal, `"{PROMPT}"` sentinel) |
 |---|---|---|---|
-| `claude` | `CLAUDE.md` | `claude -p "$(cat .ralph/prompt.md)" --dangerously-skip-permissions` | `["claude", "-p", PROMPT, "--dangerously-skip-permissions"]` |
-| `copilot` | `AGENTS.md` | `copilot --yolo --allow-tools --prompt "$(cat .ralph/prompt.md)"` | `["copilot", "--yolo", "--allow-tools", "--prompt", PROMPT]` |
-| `gemini` | `GEMINI.md` | `gemini -p "$(cat .ralph/prompt.md)" --yolo` | `["gemini", "-p", PROMPT, "--yolo"]` |
+| `claude` | `CLAUDE.md` | `"claude"` | `["-p", "{PROMPT}", "--dangerously-skip-permissions"]` |
+| `copilot` | `AGENTS.md` | `"copilot"` | `["--yolo", "--allow-tools", "--prompt", "{PROMPT}"]` |
+| `gemini` | `GEMINI.md` | `"gemini"` | `["-p", "{PROMPT}", "--yolo"]` |
 
 Notes:
-- `PROMPT` in the argv form is a **bare identifier**, not a string literal. The ts/js/py templates resolve it at runtime by reading `.ralph/prompt.md`.
-- v1 only supports these 3 agents. Adding a new agent requires extending this table with all 3 fields (`memoryFile`, `shellForm`, `argv`), not just one.
-- The scaffolder **does not** write a `runner` field into `prd.json` by default — users add it themselves when they want to override the baked invocation. See "Runtime override" below.
+- `"{PROMPT}"` is a literal sentinel string inside `args`. The driver replaces it at runtime with the contents of `.ralph/prompt.md`; if it's missing the driver appends the prompt at the end with a stderr warning.
+- v1 only supports these 3 agents out-of-the-box. The schema's `runner.command` is open-ended (`aider`, `cursor-agent`, custom wrappers all work) — adding a new "preferred" agent means extending this table.
+- Drivers have NO `{{AGENT_CLI}}` / `{{AGENT_ARGV}}` placeholders. There is no fallback if `prd.json.runner` is missing — the driver aborts with a migration message.
 
-## Runtime override (`prd.json.runner`)
+## Runtime configuration (`prd.json.runner`)
 
-Optional `runner` object in `prd.json` lets users swap CLI / model / flags without re-scaffolding:
+The `runner` block in `prd.json` is **required**. It's the single source of truth for how the agent CLI is spawned each iteration:
 
 ```json
 {
@@ -312,14 +313,16 @@ Optional `runner` object in `prd.json` lets users swap CLI / model / flags witho
 
 Rules (enforced by `prd.schema.json` + every driver):
 
-- **All-or-nothing.** Both `command` (non-empty string) and `args` (non-empty array of non-empty strings) required when `runner` is present.
+- **All-or-nothing shape.** `command` is a non-empty string; `args` is a non-empty array of non-empty strings.
 - **`{PROMPT}` sentinel** in `args` is replaced at runtime with `.ralph/prompt.md` content; if absent, prompt is appended at the end with a stderr warning.
-- **Precedence:** driver CLI flags (e.g. `--model X`) > `runner.args` > scaffold-time baked default. CLI flags are appended after resolved args; last-flag-wins agents honor that.
-- **Per-iteration validation** re-checks shape each iteration; corruption mid-loop aborts.
-- **Security:** `runner.command` controls process execution — review edits like code in PRs.
-- sh driver parses `runner` via the `jq` dep it already has.
+- **Precedence — driver CLI `--model X` is a true override (B3 strip-then-append):** before exec, the driver strips any `--model` / `--model=*` / `-m` / `-m=*` tokens (and their separate values) from `runner.args`, then appends `--model X` once at the end. A dangling `--model` / `-m` with no value following aborts. No reliance on agent CLI "last-flag-wins"; the spawn args contain exactly one `--model` selector.
+  - When CLI `--model` is **not** given, `runner.args` passes through verbatim (no strip).
+  - The driver prints one stderr `ℹ️ Stripped N --model/-m flag(s)…` line at startup when strip is non-trivial.
+- **Per-iteration validation** re-checks runner shape each iteration; corruption mid-loop aborts.
+- **Security:** `runner.command` controls process execution. Treat `prd.json` edits in PRs as code review — a malicious `command` change is a process-injection vector. The schema deliberately does NOT allowlist commands (we support `aider`, `cursor-agent`, custom wrappers); that puts the security burden on review.
+- sh driver parses `runner` via the `jq` dep it already has; ts / js / py validate via in-language type checks.
 
-The scaffolder does NOT auto-emit `runner`; `templates/prd.json.example` ships a block as documentation only.
+`templates/prd.json.example` ships the canonical shape as a reference; the scaffolder always emits a working `runner` block tailored to the chosen agent.
 
 ## Mode B — Amend (append user stories)
 
@@ -439,7 +442,7 @@ Bundled with this plugin (every path resolves under `plugins/meta-ralph/`):
 
 - `docs/meta-ralph.md` — user-facing quickstart for operators.
 - `skills/meta-ralph/templates/prd.schema.json` — JSON Schema used by Phase 4 check #2.
-- `skills/meta-ralph/templates/prd.json.example` — runner-block reference (see "Runtime override" above).
+- `skills/meta-ralph/templates/prd.json.example` — canonical runner-block + PRD reference (see "Runtime configuration" above).
 - `skills/meta-ralph/templates/RUNBOOK.md.tpl` — user-intervention guide rendered in Phase 3 step 8.
 - `skills/meta-ralph/templates/ralph/ralph.{sh,ts,js,py}.tpl` — driver templates rendered in Phase 3 step 6.
 - `skills/meta-ralph/reference/prompt.md` — agent prompt template loaded in Phase 3 step 1.

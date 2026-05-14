@@ -5,7 +5,7 @@
   "description": "Schema for prd.json files produced by the meta-ralph SKILL. See docs/meta-ralph-spec.md §6 for field semantics and the §7 Driver-Agent contract for how status transitions are validated.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["project", "branchName", "description", "userStories"],
+  "required": ["project", "branchName", "description", "runner", "userStories"],
   "properties": {
     "project": {
       "type": "string",
@@ -38,12 +38,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["command", "args"],
-      "description": "Optional all-or-nothing agent CLI invocation override. When present, drivers use runner.command + runner.args verbatim instead of the scaffold-time baked default. When absent, drivers fall back to the baked default. Use the literal string '{PROMPT}' inside `args` as a sentinel that the driver replaces with the contents of .ralph/prompt.md; if no sentinel is present, the prompt is appended at the end as a positional arg. Driver CLI flags (e.g. --model) are still appended after runner.args, so they take precedence for agents that honor last-flag-wins.",
+      "description": "Required agent CLI invocation. Drivers spawn runner.command with runner.args verbatim every iteration — this is the single source of truth for how the agent is run. Use the literal string '{PROMPT}' inside `args` as a sentinel that the driver replaces with the contents of .ralph/prompt.md; if no sentinel is present, the prompt is appended at the end as a positional arg. When the driver is started with `--model X`, it first strips any `--model` / `--model=*` / `-m` / `-m=*` tokens (and their values) from runner.args, then appends `--model X` once — so the CLI flag is a true override, not a duplicate-and-hope.",
       "properties": {
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Agent CLI binary to spawn. Open-ended string — common values: 'claude', 'codex', 'gemini', 'copilot', 'aider', 'cursor-agent'. Security note: this controls process execution; treat prd.json edits in PRs as code review."
+          "description": "Agent CLI binary to spawn. Open-ended string — common values: 'claude', 'copilot', 'gemini'. Other agents (aider, cursor-agent, codex, custom wrappers) work too. Security note: this controls process execution; treat prd.json edits in PRs as code review."
         },
         "args": {
           "type": "array",

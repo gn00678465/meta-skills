@@ -12,8 +12,9 @@ The contract is in `.ralph/prompt.md` (agent obligations) and the driver script'
 |---|---|
 | Start the loop | `{{RUN_COMMAND}}` (default: 10 iterations, agent's default model) |
 | Run for N iterations | `{{RUN_COMMAND}} N` |
-| Pin a specific model | `{{RUN_COMMAND}} --model claude-opus-4-7` (or whatever your agent CLI accepts) |
+| Pin a specific model | `{{RUN_COMMAND}} --model claude-opus-4-7` (or whatever your agent CLI accepts) — overrides any `--model` already in `prd.json.runner.args` (strip-then-append) |
 | Both | `{{RUN_COMMAND}} 20 --model gpt-5.4` (any order; `--model=X` form also works) |
+| Change CLI / default model / baseline flags | Edit `prd.json.runner` — `command` is the binary to spawn, `args` is the argument list with `"{PROMPT}"` as the prompt placeholder. Required. Driver re-validates every iteration. |
 | See current state | `cat prd.json` (or pipe through `jq`) |
 | See what last iteration did | `tail -50 .ralph/progress.txt` |
 | Stop gracefully (recommended) | `touch .ralph/.stop` from another terminal — driver finishes current iter, exits 0 cleanly |
@@ -384,8 +385,29 @@ If the loop *was* suspended mid-iteration: kill the driver (`Ctrl+C`), inspect `
 
 ---
 
-## 7. References
+## 7. Security — `prd.json.runner` is process execution
 
-- `prd.json` — story state and ordering
+`prd.json` is git-tracked. The `runner` block controls **which binary the driver spawns each iteration and what arguments it gets**:
+
+```json
+"runner": { "command": "claude", "args": ["-p", "{PROMPT}", "--dangerously-skip-permissions"] }
+```
+
+A malicious PR can repoint `command` to anything on PATH — a shell, a curl-bash one-liner wrapped in `sh -c`, an exfiltration script. The schema deliberately keeps `command` open-ended (we support `aider`, `cursor-agent`, and custom wrappers), so **the burden of trust lives in code review**.
+
+Checklist when reviewing a PR that touches `prd.json`:
+
+- [ ] `runner.command` matches the agent you expect (`claude` / `copilot` / `gemini` / your sanctioned wrapper).
+- [ ] `runner.args` contains only flags / values you recognize for that CLI.
+- [ ] The `{PROMPT}` sentinel is still present in `args` (otherwise the prompt is appended at the end with a stderr warning — degrades silently but agent still runs).
+- [ ] No suspicious shell metacharacters, redirections, or absolute paths to unsanctioned binaries.
+
+If the PR's primary diff is unrelated to agent invocation but it also touches `runner`, treat that as a smell.
+
+---
+
+## 8. References
+
+- `prd.json` — story state, ordering, and `runner` (agent invocation)
 - `.ralph/prompt.md` — agent obligations (Driver-Agent Contract A1–A7)
 - `docs/meta-ralph-spec.md` (in the SKILL repo) — full Driver-Agent Contract, invariants, known v1 limits, v2 plans

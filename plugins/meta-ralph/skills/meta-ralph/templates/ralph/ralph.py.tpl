@@ -131,18 +131,27 @@ def load_and_validate_prd():
             print(f"❌ Invalid status in story {sid}: {sstatus}", file=sys.stderr)
             sys.exit(1)
     runner = prd.get("runner")
-    if runner is not None:
-        if not isinstance(runner, dict):
-            print("❌ prd.json.runner must be an object when present", file=sys.stderr)
-            sys.exit(1)
-        cmd = runner.get("command")
-        if not isinstance(cmd, str) or not cmd:
-            print("❌ prd.json.runner.command must be a non-empty string", file=sys.stderr)
-            sys.exit(1)
-        args = runner.get("args")
-        if not isinstance(args, list) or not args or any(not isinstance(a, str) or not a for a in args):
-            print("❌ prd.json.runner.args must be a non-empty array of non-empty strings", file=sys.stderr)
-            sys.exit(1)
+    if runner is None:
+        print("❌ prd.json missing required 'runner' field.", file=sys.stderr)
+        print("   Add this block at the top level of prd.json (example for the claude CLI):", file=sys.stderr)
+        print('     "runner": {', file=sys.stderr)
+        print('       "command": "claude",', file=sys.stderr)
+        print('       "args": ["-p", "{PROMPT}", "--dangerously-skip-permissions"]', file=sys.stderr)
+        print("     }", file=sys.stderr)
+        print('   For copilot use command "copilot" with args ["--yolo","--allow-tools","--prompt","{PROMPT}"].', file=sys.stderr)
+        print('   For gemini use command "gemini" with args ["-p","{PROMPT}","--yolo"].', file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(runner, dict):
+        print("❌ prd.json.runner must be an object", file=sys.stderr)
+        sys.exit(1)
+    cmd = runner.get("command")
+    if not isinstance(cmd, str) or not cmd:
+        print("❌ prd.json.runner.command must be a non-empty string", file=sys.stderr)
+        sys.exit(1)
+    args = runner.get("args")
+    if not isinstance(args, list) or not args or any(not isinstance(a, str) or not a for a in args):
+        print("❌ prd.json.runner.args must be a non-empty array of non-empty strings", file=sys.stderr)
+        sys.exit(1)
     return prd
 
 
@@ -265,19 +274,56 @@ if MAX_ITERATIONS < 1:
     sys.exit(1)
 
 PROMPT = Path(".ralph/prompt.md").read_text(encoding="utf-8")
-BAKED_ARGV = {{AGENT_ARGV}}
-# prd.json runner override (all-or-nothing): replaces BAKED_ARGV when present.
-# '{PROMPT}' inside runner.args is substituted with the prompt content; if missing,
-# the prompt is appended at the end so the agent still receives it.
-_runner = initial_prd.get("runner")
-if _runner:
-    _expanded = [PROMPT if a == "{PROMPT}" else a for a in _runner["args"]]
-    if "{PROMPT}" not in _runner["args"]:
-        print("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.", file=sys.stderr)
-        _expanded.append(PROMPT)
-    argv = [_runner["command"]] + _expanded
+
+
+def strip_model_flags(args):
+    """Strip --model / --model=* / -m / -m=* tokens (and separate values) from args.
+
+    Returns (kept_args, stripped_count). Exits on dangling --model / -m with no value
+    following. Used only when CLI --model overrides; otherwise runner.args is verbatim.
+    """
+    kept = []
+    stripped = 0
+    i = 0
+    n = len(args)
+    while i < n:
+        a = args[i]
+        if a in ("--model", "-m"):
+            if i + 1 >= n:
+                print(f"❌ prd.json.runner.args has dangling '{a}' with no value", file=sys.stderr)
+                sys.exit(1)
+            stripped += 1
+            i += 2
+            continue
+        if a.startswith("--model=") or a.startswith("-m="):
+            stripped += 1
+            i += 1
+            continue
+        kept.append(a)
+        i += 1
+    return kept, stripped
+
+
+# Resolve agent invocation from prd.json.runner (mandatory). B3 strip-then-append:
+# when CLI --model X is given, strip model selectors from runner.args first so MODEL_ARGS
+# becomes a true override. '{PROMPT}' inside runner.args is substituted with prompt
+# content; if missing, prompt is appended at end so the agent still receives it.
+_runner = initial_prd["runner"]
+_raw_args = _runner["args"]
+if MODEL:
+    _stripped_args, _stripped_count = strip_model_flags(_raw_args)
+    if _stripped_count > 0:
+        print(
+            f"ℹ️  Stripped {_stripped_count} --model/-m flag(s) from runner.args; CLI --model {MODEL} overrides.",
+            file=sys.stderr,
+        )
 else:
-    argv = BAKED_ARGV
+    _stripped_args, _stripped_count = _raw_args, 0
+_expanded = [PROMPT if a == "{PROMPT}" else a for a in _stripped_args]
+if "{PROMPT}" not in _stripped_args:
+    print("⚠️  prd.json.runner.args has no '{PROMPT}' sentinel; appending prompt at end.", file=sys.stderr)
+    _expanded.append(PROMPT)
+argv = [_runner["command"]] + _expanded
 # MODEL_ARGS empty when --model not given, otherwise ["--model", "<name>"].
 MODEL_ARGS = ["--model", MODEL] if MODEL else []
 
