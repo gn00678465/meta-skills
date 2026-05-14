@@ -251,7 +251,7 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
   BEFORE_SHA=$(git rev-parse HEAD)
   BEFORE_PASSED=$(jq -r '[.userStories[] | select(.status=="passed") | .id] | sort | @csv' prd.json)
 
-  # 10b'. backlog-exhausted pre-check (Issue #14, see meta-ralph-v2-plans.md).
+  # 10b'. backlog-exhausted pre-check (see docs/meta-ralph-spec.md §12.1, Issue #14).
   # No todo/in_progress story ⇒ agent has nothing actionable; skip spawn to avoid
   # burning tokens on empty iterations. All-passed → exit 0; any blocked → exit 2
   # ("needs human attention", distinct from generic exit 1). ITERS_COMPLETED stays
@@ -292,7 +292,7 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
   AGENT_EXIT=$?
   set -e
 
-  # 10c'. commit-failure detection (gnhf-inspired, see spec §12 Issue #15).
+  # 10c'. commit-failure detection (gnhf-inspired, see docs/meta-ralph-spec.md §12.2, Issue #15).
   # Three-condition AND: agent_exit != 0 + working tree dirty + HEAD didn't move
   # ⇒ commit failure (pre-commit hook / signing / lint gate). Preserve tree,
   # write sentinel with retry counter, let next iter agent attempt repair.
@@ -351,7 +351,7 @@ while (( i < MAX_ITERATIONS )) && (( SHOULD_STOP == 0 )); do
   fi
 
   # 10f. commit-verify: a story flipping to passed must coincide with HEAD advancing
-  # Limitation: empty / unrelated commits are not detected by this check (see spec §7.3)
+  # Limitation: empty / unrelated commits are not detected by this check (see docs/meta-ralph-spec.md §7.4).
   AFTER_SHA=$(git rev-parse HEAD)
   AFTER_PASSED=$(jq -r '[.userStories[] | select(.status=="passed") | .id] | sort | @csv' prd.json)
   if [[ "$AFTER_PASSED" != "$BEFORE_PASSED" && "$BEFORE_SHA" == "$AFTER_SHA" ]]; then

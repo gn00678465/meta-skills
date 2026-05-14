@@ -92,9 +92,7 @@ Migration (existing PRDs scaffolded before runner was mandatory): driver and ame
 ## Further reading
 
 - `SKILL.md` — full skill spec (bootstrap phases, amend phases, pre-flight checks, verification table).
-- `docs/meta-ralph-spec.md` — authoritative Driver–Agent Contract, bash skeleton, known v1 limits, v2 plans index.
-- `docs/meta-ralph-v2-plans.md` — detailed designs for v2 plans, indexed 1:1 against spec §12.
-- `docs/meta-ralph.md` — original design notes (historical context).
+- `docs/meta-ralph-spec.md` — authoritative Driver–Agent Contract, runtime invariants, runner block, cross-runtime mapping, driver enhancements (§12).
 - `templates/prd.schema.json` — schema used by Phase 4 verification.
 - `templates/RUNBOOK.md.tpl` — operator guide template rendered at scaffold time.
 - `reference/prompt.md` — agent prompt template loaded at scaffold time.

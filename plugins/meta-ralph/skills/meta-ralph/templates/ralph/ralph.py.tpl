@@ -342,7 +342,7 @@ while i < MAX_ITERATIONS and not _should_stop:
     before_sha = git("rev-parse", "HEAD").stdout.strip()
     before_passed = sorted(s["id"] for s in before["userStories"] if s["status"] == "passed")
 
-    # 10b'. backlog-exhausted pre-check (Issue #14, see meta-ralph-v2-plans.md).
+    # 10b'. backlog-exhausted pre-check (see docs/meta-ralph-spec.md §12.1, Issue #14).
     # No todo/in_progress story ⇒ agent has nothing actionable; skip spawn to avoid
     # burning tokens on empty iterations. All-passed → exit 0; any blocked → exit 2
     # ("needs human attention", distinct from generic exit 1). _iters_completed stays
@@ -391,7 +391,7 @@ while i < MAX_ITERATIONS and not _should_stop:
     result = subprocess.run(argv + MODEL_ARGS, check=False)
     agent_exit = result.returncode
 
-    # 10c'. commit-failure detection (gnhf-inspired, see spec §12 Issue #15):
+    # 10c'. commit-failure detection (gnhf-inspired, see docs/meta-ralph-spec.md §12.2, Issue #15):
     # agent exit non-zero + working tree dirty + HEAD didn't move ⇒ commit failure.
     # Preserve working tree, write sentinel with retry counter, let next iter agent repair.
     after_porcelain = git("status", "--porcelain").stdout

@@ -315,7 +315,7 @@ while (i < MAX_ITERATIONS && !shouldStop) {
   const beforePassed = before.userStories
     .filter((s) => s.status === "passed").map((s) => s.id).sort().join(",");
 
-  // 10b'. backlog-exhausted pre-check (Issue #14, see meta-ralph-v2-plans.md).
+  // 10b'. backlog-exhausted pre-check (see docs/meta-ralph-spec.md §12.1, Issue #14).
   // No todo/in_progress story ⇒ agent has nothing actionable; skip spawn to avoid
   // burning tokens on empty iterations. All-passed → exit 0; any blocked → exit 2
   // ("needs human attention", distinct from generic exit 1). itersCompleted stays
@@ -359,7 +359,7 @@ while (i < MAX_ITERATIONS && !shouldStop) {
   const result = spawnSync(argv[0], argv.slice(1).concat(MODEL_ARGS), { stdio: "inherit" });
   const agentExit = result.status == null ? 1 : result.status;
 
-  // 10c'. commit-failure detection (gnhf-inspired, see spec §12 Issue #15)
+  // 10c'. commit-failure detection (gnhf-inspired, see docs/meta-ralph-spec.md §12.2, Issue #15)
   const afterPorcelain = git("status", "--porcelain").stdout;
   const afterShaPrecheck = git("rev-parse", "HEAD").stdout;
   if (agentExit !== 0 && afterPorcelain !== "" && beforeSha === afterShaPrecheck) {

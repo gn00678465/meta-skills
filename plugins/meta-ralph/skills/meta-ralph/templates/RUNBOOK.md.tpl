@@ -132,7 +132,7 @@ rmdir .ralph/.lock
 
 Sanity-check no actual ralph process is running first (`ps aux | grep ralph` on Unix; Task Manager on Windows).
 
-> v1.3 plan: two-stage Ctrl+C UX (1st = same as `touch .ralph/.stop`; 2nd = force exit). Requires child-process detach to keep agent alive after first Ctrl+C; cross-OS process-group plumbing deferred. See spec §12 #12.
+> v1.3 plan: two-stage Ctrl+C UX (1st = same as `touch .ralph/.stop`; 2nd = force exit). Requires child-process detach to keep agent alive after first Ctrl+C; cross-OS process-group plumbing deferred. See spec §12.3.
 
 ---
 
