@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://meta-ralph/prd.schema.json",
+  "title": "meta-ralph PRD",
+  "description": "Schema for prd.json files produced by the meta-ralph SKILL. See docs/meta-ralph-spec.md §6 for field semantics and the §7 Driver-Agent contract for how status transitions are validated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "branchName", "description", "runner", "userStories"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Project name; usually inferred from package.json name or cwd basename."
+    },
+    "branchName": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9/_-]+$",
+      "description": "Git branch ralph operates on. Suggested form: 'ralph/<feature-slug>'."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-paragraph description of what this PRD aims to build."
+    },
+    "userStories": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of stories the agent works through. Lower priority value = higher priority.",
+      "items": { "$ref": "#/definitions/userStory" }
+    },
+    "runner": {
+      "$ref": "#/definitions/runner"
+    }
+  },
+  "definitions": {
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "args"],
+      "description": "Required agent CLI invocation. Drivers spawn runner.command with runner.args verbatim every iteration — this is the single source of truth for how the agent is run. Use the literal string '{PROMPT}' inside `args` as a sentinel that the driver replaces with the contents of .ralph/prompt.md; if no sentinel is present, the prompt is appended at the end as a positional arg. When the driver is started with `--model X`, it first strips any `--model` / `--model=*` / `-m` / `-m=*` tokens (and their values) from runner.args, then appends `--model X` once — so the CLI flag is a true override, not a duplicate-and-hope.",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Agent CLI binary to spawn. Open-ended string — common values: 'claude', 'copilot', 'gemini'. Other agents (aider, cursor-agent, codex, custom wrappers) work too. Security note: this controls process execution; treat prd.json edits in PRs as code review."
+        },
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Full argument list passed to <command>. Use '{PROMPT}' as a sentinel marking where the agent receives the prompt content (read from .ralph/prompt.md at runtime). Example: ['-p', '{PROMPT}', '--model', 'opus', '--dangerously-skip-permissions']."
+        }
+      }
+    },
+    "userStory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "acceptanceCriteria", "priority", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^US-\\d{3,}$",
+          "description": "Stable identifier; convention is US-001, US-002, ..."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Lower = higher priority. Agent picks lowest priority story whose status is todo or in_progress."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["todo", "in_progress", "passed", "blocked"],
+          "description": "Lifecycle: todo -> in_progress -> passed (terminal) | blocked (needs user). The Driver-Agent contract (spec §7) requires at most one in_progress at a time."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form notes the agent appends per-story (gotchas, blocker reasons). Optional, defaults to ''."
+        }
+      }
+    }
+  }
+}

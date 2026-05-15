@@ -1,0 +1,19 @@
+{
+  "name": "react-ai-infra",
+  "version": "0.1.0",
+  "description": "Deploys cross-platform agent assets (apm.yml, bundled skills/rules, framework-specific AGENTS.md) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself.",
+  "author": {
+    "name": "Madao",
+    "email": "gn00678465@gmail.com"
+  },
+  "homepage": "https://github.com/gn00678465/meta-skills",
+  "repository": "https://github.com/gn00678465/meta-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "react",
+    "agent-assets",
+    "apm",
+    "conventions"
+  ]
+}

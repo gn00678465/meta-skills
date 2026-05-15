@@ -1,0 +1,37 @@
+{
+  "name": "meta-skills",
+  "description": "Meta-skills marketplace — scaffolders for agentic workflows (ralph and beyond)",
+  "owner": {
+    "name": "Madao",
+    "email": "gn00678465@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "meta-ralph",
+      "source": "./plugins/meta-ralph",
+      "description": "Scaffold ralph autonomous coding loops with PRD-driven user stories, driver-agent contract, and multi-runtime drivers (sh/ts/js/py)",
+      "category": "agentic",
+      "tags": [
+        "ralph",
+        "scaffolder",
+        "autonomous",
+        "skills"
+      ]
+    },
+    {
+      "name": "react-ai-infra",
+      "source": "./plugins/frontend-dev/react-ai-infra",
+      "description": "Deploy cross-platform agent assets (apm.yml, bundled skills/rules, framework-specific AGENTS.md) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself.",
+      "category": "frontend",
+      "tags": [
+        "react",
+        "nextjs",
+        "tanstack",
+        "vite",
+        "apm",
+        "agent-assets",
+        "skills"
+      ]
+    }
+  ]
+}
