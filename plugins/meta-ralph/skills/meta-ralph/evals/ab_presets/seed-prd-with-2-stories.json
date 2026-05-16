@@ -1,0 +1,35 @@
+{
+  "project": "demo-app",
+  "branchName": "ralph/demo",
+  "description": "A simple demo todo list app — preset for ab-harness amend fixtures.",
+  "runner": {
+    "command": "claude",
+    "args": ["-p", "{PROMPT}", "--dangerously-skip-permissions"]
+  },
+  "userStories": [
+    {
+      "id": "US-PRESET-1",
+      "title": "List todos on home screen",
+      "description": "Render existing todos when the user opens the app.",
+      "acceptanceCriteria": [
+        "Todos render from local storage on load",
+        "Empty list shows a placeholder message"
+      ],
+      "priority": 1,
+      "status": "todo",
+      "notes": ""
+    },
+    {
+      "id": "US-PRESET-2",
+      "title": "Add new todo",
+      "description": "Allow the user to add a new todo to the list.",
+      "acceptanceCriteria": [
+        "Pressing Enter on the input appends a new todo",
+        "Empty/whitespace-only input is rejected"
+      ],
+      "priority": 2,
+      "status": "todo",
+      "notes": ""
+    }
+  ]
+}

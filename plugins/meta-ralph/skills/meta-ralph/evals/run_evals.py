@@ -32,6 +32,8 @@ RESULTS_ROOT = HERE / "results"
 
 RUNTIMES = ["sh", "ts", "js", "py"]
 
+_DRIVER_OVERRIDE: Path | None = None
+
 
 def _resolve_bash() -> str:
     """Pick a bash that has MSYS tooling on PATH (so the sh driver's `command -v jq` succeeds).
@@ -146,9 +148,16 @@ def setup_sandbox(scenario: dict[str, Any], runtime: str) -> Path:
     (ralph_dir / "prompt.md").write_bytes(prompt_content.encode("utf-8"))
     (ralph_dir / "progress.txt").write_bytes(b"## Codebase Patterns\n")
 
-    # Copy driver template, ensure LF endings, drop the .tpl suffix
+    # Copy driver — either from the standard template, or from --driver-from override
     ext = runtime
-    src = TEMPLATES_DIR / f"ralph.{ext}.tpl"
+    if _DRIVER_OVERRIDE is not None:
+        src = _DRIVER_OVERRIDE / ".ralph" / f"ralph.{ext}"
+        if not src.exists():
+            raise FileNotFoundError(
+                f"--driver-from path missing expected driver: {src}"
+            )
+    else:
+        src = TEMPLATES_DIR / f"ralph.{ext}.tpl"
     dst = ralph_dir / f"ralph.{ext}"
     raw = src.read_bytes().replace(b"\r\n", b"\n")
     dst.write_bytes(raw)
@@ -420,7 +429,32 @@ def main() -> int:
                         help="Comma-separated scenario names (default: all)")
     parser.add_argument("--keep-sandbox", action="store_true")
     parser.add_argument("--iteration", type=int, default=1)
+    parser.add_argument(
+        "--driver-from",
+        type=Path,
+        default=None,
+        help="If set, copy the driver from <path>/.ralph/ralph.<ext> instead of templates/. "
+             "Used by ab_harness.py to evaluate agent-produced drivers.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="If set, write results here instead of evals/results/iteration-<N>/. "
+             "Required when run_evals.py is invoked re-entrantly by ab_harness.py "
+             "to avoid clobbering across runs.",
+    )
     args = parser.parse_args()
+
+    global _DRIVER_OVERRIDE
+    _DRIVER_OVERRIDE = args.driver_from
+
+    if _DRIVER_OVERRIDE is not None and not (_DRIVER_OVERRIDE / ".ralph").is_dir():
+        print(
+            f"--driver-from path missing .ralph/ directory: {_DRIVER_OVERRIDE}",
+            file=sys.stderr,
+        )
+        return 2
 
     runtimes = [r.strip() for r in args.runtime.split(",") if r.strip()]
     bad = [r for r in runtimes if r not in RUNTIMES]
@@ -440,7 +474,10 @@ def main() -> int:
     else:
         scenarios = all_scenarios
 
-    out_dir = RESULTS_ROOT / f"iteration-{args.iteration}"
+    if args.output_dir is not None:
+        out_dir = args.output_dir
+    else:
+        out_dir = RESULTS_ROOT / f"iteration-{args.iteration}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Running {len(scenarios)} scenario(s) across {len(runtimes)} runtime(s)...")
