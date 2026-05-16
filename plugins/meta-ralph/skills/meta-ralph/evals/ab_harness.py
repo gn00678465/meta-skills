@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""ab_harness.py — A/B test driver for meta-ralph SKILL variants.
+"""ab_harness.py — regression / A/B driver for meta-ralph SKILL.
 
-Companion to run_evals.py (driver eval suite). This harness compares variant A
-(plugins/meta-ralph/) against variant B (plugins/meta-ralph-b/) across a
-fixture set defined in ab_fixtures.json.
+Companion to run_evals.py (driver eval suite). Defaults to a single-variant
+smoke against the current `meta-ralph` SKILL.md across the fixture set in
+ab_fixtures.json. A/B mode is opt-in: scaffold a sibling plugin at
+plugins/meta-ralph-b/ (sharing templates/scripts/reference/docs with A) and
+pass `--variant A,B` to compare a candidate against the canonical.
 
-Phase 1 of the implementation plan: CLI surface + --dry-run. LLM invocation,
-grading, and report rendering land in later tasks.
+The A/B asset-parity check only fires when variant B is in scope.
 """
 from __future__ import annotations
 
@@ -24,10 +25,19 @@ FIXTURES_PATH = HERE / "ab_fixtures.json"
 DEFAULT_OUTPUT_ROOT = HERE / "ab-results"
 
 PLUGINS_DIR = HERE.parent.parent.parent.parent
-VARIANT_PATHS = {
-    "A": PLUGINS_DIR / "meta-ralph",
-    "B": PLUGINS_DIR / "meta-ralph-b",
-}
+
+
+def _detect_variants() -> dict[str, Path]:
+    """A is always known. B is opt-in — present only when plugins/meta-ralph-b/
+    exists on disk (caller scaffolds it for an A/B comparison)."""
+    result: dict[str, Path] = {"A": PLUGINS_DIR / "meta-ralph"}
+    b_path = PLUGINS_DIR / "meta-ralph-b"
+    if b_path.is_dir():
+        result["B"] = b_path
+    return result
+
+
+VARIANT_PATHS = _detect_variants()
 
 
 @dataclass
@@ -46,8 +56,10 @@ def parse_args(argv: list[str] | None = None) -> HarnessArgs:
         prog="ab_harness.py",
         description="A/B test harness for meta-ralph SKILL variants",
     )
-    p.add_argument("--variant", default="A,B",
-                   help="Comma-separated variants to run (default: A,B)")
+    p.add_argument("--variant", default="A",
+                   help="Comma-separated variants to run (default: A, single-variant "
+                        "smoke). Pass 'A,B' for A/B comparison; requires "
+                        "plugins/meta-ralph-b/ scaffolded.")
     p.add_argument("--fixture", default="",
                    help="Comma-separated fixture ids (default: all)")
     p.add_argument("--reps", type=int, default=None,
@@ -126,28 +138,33 @@ def preflight() -> dict[str, Any]:
     status: dict[str, Any] = {}
     for tool in required:
         status[tool] = shutil.which(tool) is not None
-    import ab_lib
-    a_skill = VARIANT_PATHS["A"] / "skills" / "meta-ralph"
-    b_skill = VARIANT_PATHS["B"] / "skills" / "meta-ralph"
-    a_root = VARIANT_PATHS["A"]
-    b_root = VARIANT_PATHS["B"]
-    parity = True
-    for sub in ("templates", "scripts", "reference"):
-        if not (a_skill / sub).exists() or not (b_skill / sub).exists():
-            parity = False
-            break
-        if ab_lib.hash_tree(a_skill / sub) != ab_lib.hash_tree(b_skill / sub):
-            parity = False
-            break
-    if parity:
-        a_docs = a_root / "docs"
-        b_docs = b_root / "docs"
-        if not a_docs.exists() or not b_docs.exists():
-            parity = False
-        elif ab_lib.hash_tree(a_docs) != ab_lib.hash_tree(b_docs):
-            parity = False
-    status["asset_parity"] = parity
-    status["ok"] = all(status.values())
+    if "B" in VARIANT_PATHS:
+        import ab_lib
+        a_skill = VARIANT_PATHS["A"] / "skills" / "meta-ralph"
+        b_skill = VARIANT_PATHS["B"] / "skills" / "meta-ralph"
+        a_root = VARIANT_PATHS["A"]
+        b_root = VARIANT_PATHS["B"]
+        parity = True
+        for sub in ("templates", "scripts", "reference"):
+            if not (a_skill / sub).exists() or not (b_skill / sub).exists():
+                parity = False
+                break
+            if ab_lib.hash_tree(a_skill / sub) != ab_lib.hash_tree(b_skill / sub):
+                parity = False
+                break
+        if parity:
+            a_docs = a_root / "docs"
+            b_docs = b_root / "docs"
+            if not a_docs.exists() or not b_docs.exists():
+                parity = False
+            elif ab_lib.hash_tree(a_docs) != ab_lib.hash_tree(b_docs):
+                parity = False
+        status["asset_parity"] = parity
+    else:
+        status["asset_parity"] = "n/a (variant B not scaffolded)"
+    status["ok"] = all(v for k, v in status.items() if k != "asset_parity") and (
+        status["asset_parity"] is True or status["asset_parity"] == "n/a (variant B not scaffolded)"
+    )
     return status
 
 
@@ -245,7 +262,11 @@ def _run_one(variant: str, fixture: dict[str, Any], rep_idx: int,
 
 
 def _skill_md_stats(variant: str) -> dict[str, int]:
-    """Lines / chars / approximate token count for the variant's SKILL.md."""
+    """Lines / chars / approximate token count for the variant's SKILL.md.
+    Returns zeros for variants that have no on-disk plugin (e.g. report rendering
+    in tests with synthetic records that name an unscaffolded variant)."""
+    if variant not in VARIANT_PATHS:
+        return {"lines": 0, "chars": 0, "approx_tokens": 0}
     path = VARIANT_PATHS[variant] / "skills" / "meta-ralph" / "SKILL.md"
     if not path.exists():
         return {"lines": 0, "chars": 0, "approx_tokens": 0}
@@ -405,6 +426,15 @@ def write_real_run_report(iter_dir: Path, records: list[dict[str, Any]],
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    unknown_variants = [v for v in args.variants if v not in VARIANT_PATHS]
+    if unknown_variants:
+        print(
+            f"[error] unknown variant(s): {unknown_variants}. "
+            f"Known: {sorted(VARIANT_PATHS)}. "
+            f"Variant B is opt-in — scaffold plugins/meta-ralph-b/ first.",
+            file=sys.stderr,
+        )
+        return 2
     doc = load_fixtures()
     fixtures = select_fixtures(doc, args.fixture_ids)
     reps = args.reps if args.reps is not None else doc["reps_per_fixture"]
