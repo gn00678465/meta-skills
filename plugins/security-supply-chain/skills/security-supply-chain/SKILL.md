@@ -44,26 +44,6 @@ Every example file has inline comments explaining each setting and warning about
 
 Bot configs use tiered variants: 3-day patch / 7-day minor / 14-day major. For the package manager itself, a single 7-day default is usually enough. Do not weaken below 3 days without a written reason.
 
-## Detection: Which Package Managers Are in Scope
-
-Run the variant for the local shell. Apply hardening for **every** lockfile found. A repo with both `package-lock.json` and `pnpm-lock.yaml` has a real problem — flag it before configuring anything.
-
-**Bash / zsh (macOS, Linux, Git Bash):**
-```bash
-ls package-lock.json pnpm-lock.yaml yarn.lock bun.lock bun.lockb 2>/dev/null
-grep -E '"packageManager"|"engines"' package.json 2>/dev/null
-ls uv.lock Pipfile.lock poetry.lock requirements*.txt pyproject.toml 2>/dev/null
-ls .github/dependabot.yml renovate.json .github/renovate.json 2>/dev/null
-```
-
-**PowerShell (Windows):**
-```powershell
-Get-ChildItem package-lock.json, pnpm-lock.yaml, yarn.lock, bun.lock, bun.lockb -ErrorAction Ignore
-Select-String -Path package.json -Pattern '"packageManager"|"engines"' -ErrorAction Ignore
-Get-ChildItem uv.lock, Pipfile.lock, poetry.lock, requirements*.txt, pyproject.toml -ErrorAction Ignore
-Get-ChildItem .github/dependabot.yml, renovate.json, .github/renovate.json -ErrorAction Ignore
-```
-
 ## Open When…
 
 | Open when you need to… | Read |
@@ -83,44 +63,23 @@ Get-ChildItem .github/dependabot.yml, renovate.json, .github/renovate.json -Erro
 | set up an internal registry / proxy or air-gapped install | [`references/registry-controls.md`](references/registry-controls.md) |
 | add commit-time secret scanning, CI log redaction, and SBOM | [`references/secret-hygiene-and-sbom.md`](references/secret-hygiene-and-sbom.md) |
 | respond to a published compromise or a suspected workstation breach | [`references/incident-response.md`](references/incident-response.md) |
+| **detect which package managers are in scope** (shell snippets, mixed-lockfile rules) | [`references/detection.md`](references/detection.md) |
+| **verify that each applied control actually took effect** (functional age-gate test, lockfile audit) | [`references/verification.md`](references/verification.md) |
+| answer "are we covered against X?" — known gaps, ecosystems without age-gate support, what to pair this with | [`references/limitations.md`](references/limitations.md) |
 | grab a copy-paste-ready config in its native format | [`examples/`](examples/) (canonical configs — source of truth) |
-| understand maintenance: when to re-verify against upstream docs | [`SPEC.md`](SPEC.md) |
 
-## Verification Checklist
+## Verification
 
-After applying, verify each control actually took effect. **Each "must fail" check requires that you read the error message and confirm the failure reason is the age gate**, not a typo, cache miss, registry auth issue, or network error.
+Quick smoke test after applying any hardening. **Full audit checklist:** [`references/verification.md`](references/verification.md).
 
-- [ ] `pnpm config get minimum-release-age` returns the expected value (see `references/package-managers/pnpm.md`)
-- [ ] `npm config get min-release-age` returns 7
-- [ ] pnpm ≥10.26.0 (so `blockExoticSubdeps` default-on applies); not overridden to `false`
-- [ ] **Age-gate functional test** — install a package version published in the last 24h. The error **must** contain one of: `minimumReleaseAge` (pnpm/bun/uv), `min-release-age` (npm), `npmMinimalAgeGate` (yarn), `uploaded-prior-to` (pip), or `PACKAGE_TOO_FRESH`. Any other failure (404, 403, network) means the test is invalid — pick a different fresh package.
-- [ ] Lockfile is committed and tracked (`git ls-files | grep -E 'lock(file)?$|\.lock\.|\.lockb$'`)
-- [ ] CI uses a frozen/immutable install command (`npm ci`, `pnpm install --frozen-lockfile`, `bun install --frozen-lockfile`, `yarn install --immutable`, `uv sync --locked`)
-- [ ] `package.json` has no `^` or `~` in `dependencies` / `devDependencies` (or there is a deliberate, documented exception)
-- [ ] Renovate/Dependabot config matches or exceeds the package manager's cooldown
-- [ ] Lifecycle scripts: allowlist exists **before** any kill-switch is enabled (see `references/lifecycle-script-allowlists.md`)
-- [ ] Publish workflow uses OIDC + `--provenance`; trust policy pins exact repo, workflow, and protected environment (see `references/publish-path-hardening.md`)
-- [ ] `npm audit signatures` runs in CI (or equivalent for the ecosystem)
-- [ ] A malicious-package scanner (Socket.dev / Snyk / OSV-scanner) runs on every lockfile-changing PR
-- [ ] Pre-commit secret scanner (gitleaks/trufflehog) installed (see `references/secret-hygiene-and-sbom.md`)
-- [ ] `.npmrc` in the repo contains **no** `_authToken`, `_auth`, `_password`, or `email` lines
-- [ ] SBOM emitted per build and stored with the artifact
-
-## Limitations
-
-The minimum release age defense and the controls in this skill **do not** protect against:
-
-- **Long-running infiltrations** where the attacker waits (XZ Utils: ~2 years).
-- **Maintainer sabotage** of their own package (colors.js, node-ipc).
-- **Build system / CI compromises** (SolarWinds, 3CX).
-- **Infrastructure / CDN takeover** (Polyfill.io).
-- **Genuine vulnerabilities** discovered post-release (Log4Shell). The gate *delays* the fix.
-- **Ecosystems without native age-gate support**: Go modules, Maven, Gradle, Composer. For those, rely on `GOSUMDB` + `GOPROXY=off` for Go, GPG-signed artifacts + `gradle --write-verification-metadata sha256,pgp` for Gradle, `dependency-check` plugins for Maven, and a vendoring proxy for all of them (see `references/registry-controls.md`).
-
-Treat this skill as one layer. Pair with SCA scanning (Socket, Snyk, GitHub Advisory), SBOM generation, least-privilege CI tokens, and human review of every lockfile-changing PR.
+- [ ] **Age-gate functional test** — try to install a package version published in the last 24h; the failure message must mention `minimumReleaseAge` / `min-release-age` / `npmMinimalAgeGate` / `uploaded-prior-to` / `PACKAGE_TOO_FRESH`. Any other error (404, auth, network) means the test is invalid.
+- [ ] Lockfile is committed (`git ls-files | grep -E 'lock(file)?$|\.lock\.|\.lockb$'`).
+- [ ] CI uses a frozen install (`npm ci` / `pnpm install --frozen-lockfile` / `bun install --frozen-lockfile` / `yarn install --immutable` / `uv sync --locked`).
+- [ ] `.npmrc` in the repo contains no `_authToken`, `_auth`, `_password`, or `email` lines.
+- [ ] Pre-commit secret scanner (gitleaks/trufflehog) installed.
 
 ## References
 
-Upstream docs are linked from each `references/<topic>.md` file. The maintenance contract — version cutoffs, source-verification policy, and when to re-audit — is in [`SPEC.md`](SPEC.md).
+Upstream docs are linked from each `references/<topic>.md` file.
 
 External source for the cross-ecosystem matrix: Daniel Akash, [The Simplest Supply Chain Defense](https://daniakash.com/posts/simplest-supply-chain-defense/).
