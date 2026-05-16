@@ -1,1 +1,11 @@
 .claude/settings.local.json
+
+# meta-ralph A/B harness output (regenerable per iteration)
+plugins/meta-ralph/skills/meta-ralph/evals/ab-results/
+
+# Python build/cache
+__pycache__/
+*.pyc
+
+# Harness runtime logs (regenerable per run)
+plugins/meta-ralph/skills/meta-ralph/evals/*.log
