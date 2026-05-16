@@ -1,0 +1,11 @@
+{
+  "name": "meta-ralph-b",
+  "version": "0.1.0",
+  "description": "Variant B of meta-ralph — used by ab-harness to A/B test SKILL.md simplifications. Same skill (name: meta-ralph) as plugins/meta-ralph; only SKILL.md differs.",
+  "author": {
+    "name": "Madao",
+    "email": "gn00678465@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["ab-test", "meta-ralph", "experiment"]
+}
