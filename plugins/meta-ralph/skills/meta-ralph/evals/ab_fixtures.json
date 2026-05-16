@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "reps_per_fixture": 3,
+  "fixtures": [
+    {
+      "id": "boot-sh-claude-en",
+      "kind": "bootstrap",
+      "prompt": "set up ralph for a TodoMVC app using claude with the sh runtime. Proceed without asking confirmation questions; use the choices stated in this prompt and reasonable defaults for anything else.",
+      "wall_timeout_s": 360,
+      "expected": {
+        "should_trigger_skill": true,
+        "files_required": ["prd.json", ".ralph/ralph.sh", ".ralph/prompt.md", ".ralph/RUNBOOK.md", ".ralph/progress.txt", ".gitignore"],
+        "prd_constraints": {
+          "runner_command_contains": "claude",
+          "min_user_stories": 3,
+          "max_user_stories": 12,
+          "runtime": "sh"
+        },
+        "driver_eval_required": true,
+        "amend_mode": false
+      }
+    },
+    {
+      "id": "boot-js-copilot-zh",
+      "kind": "bootstrap",
+      "prompt": "幫我初始化 ralph，agent 用 copilot，runtime 用 js，專案是一個 Markdown 編輯器。請直接完成、不要問確認問題；prompt 沒講到的細節用合理預設值。",
+      "wall_timeout_s": 360,
+      "expected": {
+        "should_trigger_skill": true,
+        "files_required": ["prd.json", ".ralph/ralph.js", ".ralph/prompt.md", ".ralph/RUNBOOK.md", ".ralph/progress.txt", ".gitignore", ".ralph/package.json"],
+        "prd_constraints": {
+          "runner_command_contains": "copilot",
+          "min_user_stories": 3,
+          "max_user_stories": 12,
+          "runtime": "js"
+        },
+        "driver_eval_required": true,
+        "amend_mode": false
+      }
+    },
+    {
+      "id": "amend-en",
+      "kind": "amend",
+      "prompt": "append two stories to the existing ralph prd: dark mode toggle, keyboard shortcuts. Proceed without asking confirmation questions.",
+      "wall_timeout_s": 240,
+      "preset": "seed-prd-with-2-stories",
+      "expected": {
+        "should_trigger_skill": true,
+        "files_required": ["prd.json"],
+        "files_forbidden_to_change": [".ralph/ralph.sh", ".ralph/prompt.md", ".ralph/RUNBOOK.md", ".ralph/progress.txt", ".gitignore"],
+        "prd_constraints": {
+          "min_user_stories": 4,
+          "max_user_stories": 4,
+          "preserves_initial_story_ids": true
+        },
+        "driver_eval_required": false,
+        "amend_mode": true
+      }
+    },
+    {
+      "id": "amend-zh",
+      "kind": "amend",
+      "prompt": "在 ralph prd 新增一個 story：支援 PWA 離線快取。請直接完成、不要問確認問題。",
+      "wall_timeout_s": 240,
+      "preset": "seed-prd-with-2-stories",
+      "expected": {
+        "should_trigger_skill": true,
+        "files_required": ["prd.json"],
+        "files_forbidden_to_change": [".ralph/ralph.sh", ".ralph/prompt.md", ".ralph/RUNBOOK.md", ".ralph/progress.txt", ".gitignore"],
+        "prd_constraints": {
+          "min_user_stories": 3,
+          "max_user_stories": 3,
+          "preserves_initial_story_ids": true
+        },
+        "driver_eval_required": false,
+        "amend_mode": true
+      }
+    },
+    {
+      "id": "neg-explain",
+      "kind": "negative",
+      "prompt": "what is ralph and how does meta-ralph work? just explain, don't scaffold",
+      "wall_timeout_s": 60,
+      "expected": {
+        "should_trigger_skill": false,
+        "files_required": [],
+        "scaffold_must_be_empty": true,
+        "driver_eval_required": false,
+        "amend_mode": false
+      }
+    },
+    {
+      "id": "edge-runner-conflict",
+      "kind": "edge",
+      "prompt": "set up ralph with gemini agent for a CLI tool, runtime python, but ALSO add user story for an HTTP API. Proceed without asking confirmation questions.",
+      "wall_timeout_s": 360,
+      "expected": {
+        "should_trigger_skill": true,
+        "files_required": ["prd.json", ".ralph/ralph.py", ".ralph/prompt.md", ".ralph/RUNBOOK.md", ".ralph/progress.txt", ".gitignore"],
+        "prd_constraints": {
+          "runner_command_contains": "gemini",
+          "min_user_stories": 1,
+          "max_user_stories": 12,
+          "runtime": "py"
+        },
+        "driver_eval_required": true,
+        "amend_mode": false
+      }
+    }
+  ]
+}
