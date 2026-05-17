@@ -74,7 +74,7 @@ Bot configs use tiered variants: 3-day patch / 7-day minor / 14-day major. For t
 
 Quick smoke test after applying any hardening. **Full audit checklist:** [`references/verification.md`](references/verification.md).
 
-- [ ] **Age-gate functional test** — try to install a package version published in the last 24h; the failure message must mention `minimumReleaseAge` / `min-release-age` / `npmMinimalAgeGate` / `uploaded-prior-to` / `PACKAGE_TOO_FRESH`. Any other error (404, auth, network) means the test is invalid.
+- [ ] **Age-gate functional test** — try to install a package version published in the last 24h; the failure message must mention `minimumReleaseAge` **or** `minimum-release-age` (pnpm/bun/uv — bun emits kebab-case, others emit camelCase) / `min-release-age` (npm) / `npmMinimalAgeGate` (yarn) / `uploaded-prior-to` (pip) / `PACKAGE_TOO_FRESH`. Any other error (404, auth, network) means the test is invalid. **Tip:** to find a genuinely fresh version, query `https://registry.npmjs.org/<pkg>` and check `time[<exact-version>]` — **not** `time.modified`, which only reflects registry metadata changes (deprecate/unpublish).
 - [ ] Lockfile is committed (`git ls-files | grep -E '(^|/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|bun\.lockb|uv\.lock|Pipfile\.lock|poetry\.lock|Gemfile\.lock|composer\.lock|Cargo\.lock|go\.sum)$'`).
 - [ ] CI uses a frozen install (`npm ci` / `pnpm install --frozen-lockfile` / `bun install --frozen-lockfile` / `yarn install --immutable` / `uv sync --locked`).
 - [ ] `.npmrc` in the repo contains no `_authToken`, `_auth`, `_password`, or `email` lines.
