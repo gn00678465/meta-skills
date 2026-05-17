@@ -1,0 +1,20 @@
+{
+  "name": "svelte-ai-infra",
+  "version": "0.1.0",
+  "description": "Bootstrap Svelte AI infrastructure into an existing Svelte/SvelteKit project: APM config, Svelte MCP server, agents, instructions, skills, and LSP settings — all wired in one shot for Claude Code, GitHub Copilot, and VS Code. Does not scaffold the Svelte app itself.",
+  "author": {
+    "name": "Madao",
+    "email": "gn00678465@gmail.com"
+  },
+  "homepage": "https://github.com/gn00678465/meta-skills",
+  "repository": "https://github.com/gn00678465/meta-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "svelte",
+    "sveltekit",
+    "agent-assets",
+    "apm",
+    "mcp"
+  ]
+}
