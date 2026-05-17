@@ -1,0 +1,75 @@
+# .github/workflows/release.yml — Trusted Publishing to npm via OIDC
+#
+# Place at .github/workflows/release.yml in your repo. Adapt for PyPI by
+# swapping the publish step with `pypa/gh-action-pypi-publish@<sha>`.
+#
+# Rationale, trust-policy footguns, account hardening: ../../references/publish-path-hardening.md
+# Upstream docs:
+#   - https://docs.npmjs.com/trusted-publishers
+#   - https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'    # ⚠️ Pin to tag pattern. Never trigger on PR / fork.
+
+# Top-level permissions: deny by default.
+permissions:
+  contents: read
+  id-token: write    # Required for OIDC. ⚠️ See trust-policy warning below.
+
+jobs:
+  publish:
+    # Pin the runner OS — `ubuntu-latest` is a moving target. For a workflow
+    # that mints publish credentials, treat the runner image as a supply
+    # chain dependency.
+    runs-on: ubuntu-24.04
+
+    # ⚠️ TRUST-POLICY FOOTGUN — read carefully.
+    #
+    # The `environment:` block ties this job to a GitHub Environment. The
+    # environment is OPTIONAL in npm's Trusted Publisher config but is the
+    # primary mitigation against "any contributor who lands a workflow file
+    # mints a publish token." Strongly recommended.
+    #
+    # The environment MUST EXIST in your repo settings (Settings → Environments
+    # → New environment) with these protections enabled BEFORE this workflow
+    # publishes successfully:
+    #   - Required reviewers (the security team)
+    #   - Allow only the main branch and tag pattern to deploy
+    #   - No "Allow administrators to bypass configured protection rules"
+    #
+    # In the npm "Trusted Publishers" config on npmjs.com, pin:
+    #   - owner/repo (exact, not glob)
+    #   - workflow filename: release.yml (NOT *.yml)
+    #   - environment: production (if you set one here)
+    environment:
+      name: production
+
+    steps:
+      # ⚠️ Actions are pinned to commit SHAs, not tags. A maintainer who can
+      # move the `v6` tag can inject token-exfil code into this workflow at
+      # runtime — and this workflow has `id-token: write`. SHA pinning closes
+      # that hole. Update with Dependabot or Renovate.
+      # actions/checkout@v6.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      # actions/setup-node@v6.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'      # npm 11.5.1+ ships with Node 22.14.0+; Node 24 LTS is the current recommendation
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false   # avoid caching auth state across runs
+
+      - run: npm ci
+
+      - run: npm test --if-present
+      - run: npm run build --if-present
+
+      # The actual publish. Trusted Publishing AUTO-GENERATES provenance —
+      # do NOT pass `--provenance` (current npm docs; passing it may emit a
+      # warning or be redundant). No NODE_AUTH_TOKEN env var either — OIDC
+      # mints credentials at runtime.
+      - run: npm publish --access public

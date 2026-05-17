@@ -1,0 +1,39 @@
+# .github/dependabot.yml — supply-chain hardening for Dependabot
+#
+# Place at .github/dependabot.yml in your repo root.
+# Add additional `package-ecosystem:` blocks (pip, gomod, etc.) using the
+# same `cooldown:` and `groups:` pattern.
+#
+# Rationale: ../../references/dependency-bots.md
+# Upstream docs:
+#   - https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#cooldown
+#   - https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#groups
+
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+    # Group related updates into a single PR. Without grouping, Dependabot
+    # opens one PR per dep — reviewers rubber-stamp, defeating the
+    # lockfile-diff review (../references/pre-merge-screening.md).
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-deps:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+
+    # Cooldown — wait N days before opening a version-update PR.
+    # NOTE: applies to *version updates only*; security updates bypass.
+    # Lower bounds: default 3, major 7, minor 3, patch 1. Do not weaken
+    # without a written reason.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3

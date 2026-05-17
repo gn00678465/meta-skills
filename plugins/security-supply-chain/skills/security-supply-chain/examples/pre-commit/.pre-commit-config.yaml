@@ -1,0 +1,34 @@
+# .pre-commit-config.yaml — secret scanning at commit time
+#
+# Place at repo root. Install the framework once: `pip install pre-commit`
+# Wire into git hooks once per clone: `pre-commit install`
+# Run ad-hoc against all files: `pre-commit run --all-files`
+#
+# Rationale: ../../references/secret-hygiene-and-sbom.md
+# Upstream docs:
+#   - https://pre-commit.com
+#   - https://github.com/gitleaks/gitleaks
+#   - https://github.com/trufflesecurity/trufflehog
+
+repos:
+  # Gitleaks — pattern-based scanner. Fast, low false-negative.
+  # Ships with built-in rules for npm _authToken, PyPI tokens, AWS keys,
+  # GitHub PATs, Slack webhooks, and ~100 other token formats.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.0
+    hooks:
+      - id: gitleaks
+
+  # TruffleHog — verifying scanner. Slower, but actually tries to use the
+  # credential it finds → fewer false positives. Recommended on top of
+  # gitleaks for high-stakes repos.
+  #
+  # ⚠️ Do NOT override the default `entry`. The upstream hook uses
+  # `--results=verified` to filter out unverifiable findings; replacing
+  # `entry` drops that filter and floods you with false positives. Use the
+  # default hook below as-is.
+  #
+  # - repo: https://github.com/trufflesecurity/trufflehog
+  #   rev: v3.83.0
+  #   hooks:
+  #     - id: trufflehog
