@@ -66,7 +66,7 @@ plugins/frontend-dev/svelte-ai-infra/skills/svelte-ai-infra/
 ### `.upstream-ref`
 
 ```
-5b4d3aa68a72e7956fb31fefa86e2bce8e3e7000
+5b4d3aa68a7df8285de4d08fb3d0c4a0505fc449
 ```
 
 （單行、無前後空白；初始值 = 2026-05-15 main HEAD，剛通過 E2E smoke test 的版本）

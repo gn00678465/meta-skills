@@ -43,7 +43,7 @@
    npx --yes sv@latest create svelte-ai-infra-bump-test --template minimal --types ts --no-add-ons --no-install
 
    # 跑完 Step 0-4，10/10 路徑須 OK + MCP 配 svelte server
-   # (流程詳見 references/workflow.md)
+   # (流程詳見 workflow.md)
    ```
    若 smoke test 失敗：上游可能 breaking change 了 — 不要 bump，先查上游 commit 看影響範圍。
 
