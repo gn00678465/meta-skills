@@ -7,7 +7,7 @@ targets:
 - copilot
 dependencies:
   apm:
-  - sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte
+  - sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__
   mcp:
   - name: svelte
     registry: false

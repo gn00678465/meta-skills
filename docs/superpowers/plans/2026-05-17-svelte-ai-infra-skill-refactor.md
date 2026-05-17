@@ -87,7 +87,7 @@ Use Edit tool. Change:
 to:
 ```yaml
   apm:
-  - sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte
+  - sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__
 ```
 
 - [ ] **Step 6: 驗證 apm.yml 仍為合法 YAML 且含 placeholder**
@@ -97,7 +97,7 @@ Run:
 node -e "
 const yaml=require('fs').readFileSync('plugins/frontend-dev/svelte-ai-infra/skills/svelte-ai-infra/assets/apm.yml','utf8');
 if(!yaml.includes('__UPSTREAM_SHA__')) {console.log('FAIL: placeholder missing'); process.exit(1);}
-if(!yaml.includes('sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte')) {console.log('FAIL: dep string wrong'); process.exit(2);}
+if(!yaml.includes('sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__')) {console.log('FAIL: dep string wrong'); process.exit(2);}
 console.log('PASS');
 "
 ```
@@ -203,8 +203,8 @@ author: <author>              # ← 改為作者名稱
 # 並把 dependencies 內的 __UPSTREAM_SHA__ 換成 .upstream-ref 內容：
 dependencies:
   apm:
-  - sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte
-                          ↑ 這個 placeholder 也要替換
+  - sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__
+                                               ↑ 這個 placeholder 也要替換
 ```
 
 讀取 SHA：
