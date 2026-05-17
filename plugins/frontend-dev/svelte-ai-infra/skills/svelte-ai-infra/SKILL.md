@@ -27,7 +27,7 @@ description: Bootstrap 或 refresh 一個 repo 的完整 Svelte AI 基礎設施 
 
 ## 前置條件
 
-- 已安裝 `apm` CLI（Windows 通常在 `C:\Users\<User>\AppData\Local\Programs\apm\bin\apm.cmd`）
+- 已安裝 `apm` CLI **≥ 0.13.0**（Windows 通常在 `C:\Users\<User>\AppData\Local\Programs\apm\bin\apm.cmd`）。0.12.x 對 `targets: [claude, copilot]` 路由有 bug：上游 plugin 的 agent / skills / instructions 不會部署到 `.claude/`，Step 4 驗收會缺 4 條 `.claude/*` 路徑。版本過舊請先 `apm update`。
 - **Bash 環境**（Linux / macOS / Windows Git Bash）— Step 1–2 的腳本是 Bash-only
 - Git Bash 環境下 `apm` 需呼叫為 `apm.cmd`；PowerShell 可直接用 `apm`
 - 可上網（拉取 sveltejs/ai-tools plugin 與最新源檔；無網路時會 fallback 到內附版本）
