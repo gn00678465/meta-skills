@@ -1,0 +1,15 @@
+# Snippet to merge into your existing pyproject.toml — supply-chain hardening
+#
+# ⚠️ Do NOT use this file AS your pyproject.toml. It contains only the
+# [tool.uv] block you need to merge into your existing file alongside your
+# [project], [build-system], [tool.<other>] sections.
+#
+# Rationale and verification: ../../references/package-managers/uv.md
+# Upstream docs: https://docs.astral.sh/uv/reference/settings/#exclude-newer
+
+[tool.uv]
+# Minimum release age — refuse versions younger than this.
+# Requires uv >= 0.9.17 for relative-duration syntax.
+# Accepts: "7 days" | "P7D" (ISO 8601) | "2026-01-15T00:00:00Z" (absolute).
+# The "7d" shorthand is NOT documented — use "7 days" or "P7D".
+exclude-newer = "7 days"

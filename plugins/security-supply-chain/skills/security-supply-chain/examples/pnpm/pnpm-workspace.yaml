@@ -1,0 +1,67 @@
+# pnpm-workspace.yaml — supply-chain hardening
+#
+# Merge these keys into the existing pnpm-workspace.yaml at your repo root.
+# Do NOT replace the file — preserve your `packages:` list and any other keys.
+#
+# ⚠️ ALL non-auth pnpm settings belong HERE, not in .npmrc. pnpm reads only
+# auth and registry settings from .npmrc. If you put `ignore-scripts=true`
+# or `save-exact=true` in .npmrc, pnpm SILENTLY IGNORES them.
+#
+# Rationale and footguns: ../../references/package-managers/pnpm.md
+# Upstream docs:
+#   - https://pnpm.io/npmrc                  (what .npmrc CAN'T do)
+#   - https://pnpm.io/settings#minimumreleaseage
+#   - https://pnpm.io/settings#blockexoticsubdeps
+#   - https://pnpm.io/settings#allowbuilds
+#   - https://pnpm.io/settings#ignorescripts
+#   - https://pnpm.io/settings#saveprefix
+
+# ---------------------------------------------------------------------------
+# Minimum release age — refuse versions younger than this.
+# Requires pnpm >= 10.16. Unit: MINUTES.
+# 10080 = 7 days. Lower bound: 4320 (3 days). Do not go lower without a
+# written reason approved by the security team.
+# ---------------------------------------------------------------------------
+minimumReleaseAge: 10080
+
+# Optional — bypass the age gate for internal packages you publish yourself.
+# Glob patterns require pnpm >= 10.17.0 (exact-name matching works on 10.16).
+minimumReleaseAgeExclude:
+  - '@my-org/*'
+
+# ---------------------------------------------------------------------------
+# Block transitive deps from non-registry sources (git URLs, tarball URLs).
+# Default `true` since pnpm 10.26.0 — listed explicitly so reviewers see the
+# policy and so any accidental override is visible in diff.
+# DO NOT set to false to "fix" an install error from a sub-dep. See pnpm.md
+# for the remediation ladder (pnpm why → upstream issue → fork to registry →
+# promote to direct dep).
+# ---------------------------------------------------------------------------
+blockExoticSubdeps: true
+
+# ---------------------------------------------------------------------------
+# Lifecycle-script kill-switch — disable all postinstall / preinstall scripts.
+# This is the pnpm setting; the equivalent in .npmrc is SILENTLY IGNORED.
+# Enable ONLY after `allowBuilds` below is populated, or every native-build
+# package (esbuild, sharp, prisma, puppeteer) breaks.
+# ---------------------------------------------------------------------------
+ignoreScripts: true
+
+# Exact-pin equivalent of npm's `save-exact=true`. Strips ^/~ from new
+# installs. Existing ranges still float until you regenerate the lockfile:
+#   pnpm install --lockfile-only
+savePrefix: ""
+
+# ---------------------------------------------------------------------------
+# Lifecycle-script allowlist. Added in pnpm 10.26.0; pnpm 11 also removes
+# the legacy `pnpm.onlyBuiltDependencies` array in package.json.
+# Build the list incrementally:
+#   1. pnpm install --ignore-scripts   (see what fails)
+#   2. add only what you actually need
+#   3. set `ignoreScripts: true` above (or run `pnpm approve-builds`)
+# ---------------------------------------------------------------------------
+allowBuilds:
+  esbuild: true
+  sharp: true
+  "@prisma/client": true
+  # Add more only after confirming the package is necessary AND audited.

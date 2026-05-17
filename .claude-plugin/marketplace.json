@@ -32,6 +32,25 @@
         "agent-assets",
         "skills"
       ]
+    },
+    {
+      "name": "security-supply-chain",
+      "source": "./plugins/security-supply-chain",
+      "description": "Harden JS/TS and Python package manager configs (pnpm, bun, npm, yarn, uv, pip) against supply chain attacks via minimum release age gates, lockfile commitment, exact version pinning, lifecycle-script allowlists, provenance/OIDC publishing, and commit-time secret scanning.",
+      "category": "security",
+      "tags": [
+        "security",
+        "supply-chain",
+        "npm",
+        "pnpm",
+        "bun",
+        "yarn",
+        "uv",
+        "pip",
+        "renovate",
+        "dependabot",
+        "skills"
+      ]
     }
   ]
 }

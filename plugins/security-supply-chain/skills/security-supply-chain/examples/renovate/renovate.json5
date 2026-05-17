@@ -1,0 +1,39 @@
+{
+  // Supply-chain hardening for Renovate.
+  // Rationale: ../../references/dependency-bots.md
+  // Upstream docs: https://docs.renovatebot.com/key-concepts/minimum-release-age/
+  //
+  // This file is renovate.json5 (JSON5) — Renovate natively supports JSON5
+  // with `//` comments. Standard renovate-schema validators accept this form.
+
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+
+  "packageRules": [
+    {
+      // Major bumps wait 14 days. A malicious major version is the highest
+      // blast radius; the cost of a 14-day delay is the lowest.
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "14 days"
+    },
+    {
+      // Patches wait 3 days. Patches are usually CVE fixes — faster cycle.
+      "matchUpdateTypes": ["patch"],
+      "minimumReleaseAge": "3 days"
+    }
+  ],
+
+  // Security updates ALREADY bypass minimumReleaseAge by default in Renovate.
+  // Do NOT add `vulnerabilityAlerts.minimumReleaseAge: "0 days"` — that's a
+  // common but unnecessary misconfiguration that obscures the actual policy.
+  "vulnerabilityAlerts": {
+    "enabled": true
+  },
+
+  // Dashboard surfaces cooldown-bypassed updates so they don't auto-merge
+  // silently. A security update is the highest-leverage point in your
+  // dependency lifecycle — humans should see it land.
+  "dependencyDashboard": true
+}
