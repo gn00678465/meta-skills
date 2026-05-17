@@ -48,7 +48,7 @@ Run:
 gh api repos/sveltejs/ai-tools/commits/main --jq '.sha'
 ```
 
-Expected: 一行 40-char hex（如 `5b4d3aa68a72e7956fb31fefa86e2bce8e3e7000`）。記下這個值，下面稱為 `<SHA>`。
+Expected: 一行 40-char hex（如 `5b4d3aa68a7df8285de4d08fb3d0c4a0505fc449`）。記下這個值，下面稱為 `<SHA>`。
 
 若 `gh api` 失敗：嘗試 `curl -sSL https://api.github.com/repos/sveltejs/ai-tools/commits/main | grep -m1 '"sha"' | head -1` 取出 sha 欄位。
 
@@ -61,7 +61,7 @@ Expected: 一行 40-char hex（如 `5b4d3aa68a72e7956fb31fefa86e2bce8e3e7000`）
 
 例：
 ```
-5b4d3aa68a72e7956fb31fefa86e2bce8e3e7000
+5b4d3aa68a7df8285de4d08fb3d0c4a0505fc449
 ```
 
 - [ ] **Step 3: 驗證 `.upstream-ref` 格式**
