@@ -8,6 +8,7 @@ A Claude Code plugin marketplace that ships **meta-skills** — skills that scaf
 |---|---|---|
 | `meta-ralph` | Scaffolds a [ralph](https://ghuntley.com/ralph/) autonomous coding loop (`prd.json` + `.ralph/*`) into a target git repo. Pure scaffolder; never executes the loop. | [docs/meta-ralph.md](plugins/meta-ralph/docs/meta-ralph.md) · [SKILL.md](plugins/meta-ralph/skills/meta-ralph/SKILL.md) · [SPEC.md](plugins/meta-ralph/docs/meta-ralph-spec.md) |
 | `react-ai-infra` | Deploys cross-platform agent assets (APM `apm.yml`, bundled skills/rules, framework-specific `AGENTS.md`) into an existing React/Next.js/TanStack Start/Vite project for Claude Code and Copilot. Does not scaffold the React app itself. | [SKILL.md](plugins/frontend-dev/react-ai-infra/skills/react-ai-infra/SKILL.md) |
+| `svelte-ai-infra` | Bootstraps Svelte AI infrastructure into an existing Svelte/SvelteKit project: APM config, Svelte MCP server, agents, instructions, skills, and LSP settings — all wired in one shot for Claude Code, GitHub Copilot, and VS Code. Does not scaffold the Svelte app itself. Requires `apm` CLI ≥ 0.13.0. | [SKILL.md](plugins/frontend-dev/svelte-ai-infra/skills/svelte-ai-infra/SKILL.md) |
 | `security-supply-chain` | Hardens JS/TS and Python package manager configs (pnpm, bun, npm, yarn, uv, pip) against supply chain attacks via minimum release age gates, lockfile commitment, exact version pinning, lifecycle-script allowlists, provenance attestation via OIDC Trusted Publishing, and commit-time secret scanning. | [SKILL.md](plugins/security-supply-chain/skills/security-supply-chain/SKILL.md) |
 
 ## Install
@@ -19,6 +20,7 @@ Add the marketplace once, then install whichever plugins you want:
 
 /plugin install meta-ralph@meta-skills
 /plugin install react-ai-infra@meta-skills
+/plugin install svelte-ai-infra@meta-skills
 /plugin install security-supply-chain@meta-skills
 ```
 
@@ -45,9 +47,12 @@ meta-skills/
     │       ├── SKILL.md                 (ralph autonomous-loop scaffolder)
     │       └── evals/                   (runner-focused validation suite, sh/ts/js/py)
     ├── frontend-dev/                    (category folder, no plugin.json)
-    │   └── react-ai-infra/
+    │   ├── react-ai-infra/
+    │   │   ├── .claude-plugin/plugin.json
+    │   │   └── skills/react-ai-infra/   (React agent-asset deployer)
+    │   └── svelte-ai-infra/
     │       ├── .claude-plugin/plugin.json
-    │       └── skills/react-ai-infra/   (React agent-asset deployer)
+    │       └── skills/svelte-ai-infra/  (Svelte AI infra bootstrapper; apm ≥ 0.13.0)
     └── security-supply-chain/
         ├── .claude-plugin/plugin.json
         └── skills/security-supply-chain/
