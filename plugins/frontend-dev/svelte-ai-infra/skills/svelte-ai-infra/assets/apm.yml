@@ -1,0 +1,20 @@
+name: <project-name>
+version: 1.0.0
+description: <project-description>
+author: <author>
+targets:
+- claude
+- copilot
+dependencies:
+  apm:
+  - sveltejs/ai-tools/plugins/claude/svelte
+  mcp:
+  - name: svelte
+    registry: false
+    transport: stdio
+    command: npx
+    args:
+    - -y
+    - '@sveltejs/mcp'
+includes: auto
+scripts: {}
