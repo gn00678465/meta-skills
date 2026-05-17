@@ -19,14 +19,13 @@ repos:
     hooks:
       - id: gitleaks
 
-  # TruffleHog — verifying scanner. Slower, but actually tries to use the
-  # credential it finds → fewer false positives. Recommended on top of
-  # gitleaks for high-stakes repos.
+  # TruffleHog — OPTIONAL second-pass verifying scanner. Slower than gitleaks
+  # but actually tries to use the credential it finds → fewer false positives.
+  # Recommended on top of gitleaks for high-stakes repos.
   #
-  # ⚠️ Do NOT override the default `entry`. The upstream hook uses
-  # `--results=verified` to filter out unverifiable findings; replacing
-  # `entry` drops that filter and floods you with false positives. Use the
-  # default hook below as-is.
+  # Uncomment the block below to enable. The default hook is intentionally used
+  # as-is — overriding `entry` drops the upstream `--results=verified` filter
+  # and floods you with unverifiable findings.
   #
   # - repo: https://github.com/trufflesecurity/trufflehog
   #   rev: v3.83.0

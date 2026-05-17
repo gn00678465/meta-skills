@@ -26,8 +26,13 @@ minimumReleaseAge: 10080
 
 # Optional — bypass the age gate for internal packages you publish yourself.
 # Glob patterns require pnpm >= 10.17.0 (exact-name matching works on 10.16).
-minimumReleaseAgeExclude:
-  - '@my-org/*'
+#
+# ⚠️ COMMENTED OUT BY DEFAULT — safe-by-default. If you leave any placeholder
+# scope here, a malicious actor who later registers it on the public registry
+# gets a free age-gate bypass. Uncomment the block below ONLY after pinning
+# to your real npm scope (e.g. '@acme-internal/*').
+# minimumReleaseAgeExclude:
+#   - '@acme-internal/*'   # ← pin to YOUR real scope before uncommenting
 
 # ---------------------------------------------------------------------------
 # Block transitive deps from non-registry sources (git URLs, tarball URLs).
@@ -42,10 +47,14 @@ blockExoticSubdeps: true
 # ---------------------------------------------------------------------------
 # Lifecycle-script kill-switch — disable all postinstall / preinstall scripts.
 # This is the pnpm setting; the equivalent in .npmrc is SILENTLY IGNORED.
-# Enable ONLY after `allowBuilds` below is populated, or every native-build
-# package (esbuild, sharp, prisma, puppeteer) breaks.
+#
+# ⚠️ COMMENTED OUT BY DEFAULT — allowlist-first. Build `allowBuilds` below
+# (run `pnpm install --ignore-scripts` to see what needs allowlisting), then
+# uncomment this line. Flipping it on prematurely silently breaks every
+# native-build package (esbuild, sharp, prisma, puppeteer) and teams tend
+# to disable the protection entirely rather than triage.
 # ---------------------------------------------------------------------------
-ignoreScripts: true
+# ignoreScripts: true
 
 # Exact-pin equivalent of npm's `save-exact=true`. Strips ^/~ from new
 # installs. Existing ranges still float until you regenerate the lockfile:

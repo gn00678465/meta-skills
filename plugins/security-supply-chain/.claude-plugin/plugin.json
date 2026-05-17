@@ -1,7 +1,7 @@
 {
   "name": "security-supply-chain",
   "version": "0.1.0",
-  "description": "Harden JavaScript/TypeScript and Python package manager configs (pnpm, bun, npm, yarn, uv, pip) against supply chain attacks via minimum release age gates, lockfile commitment, exact version pinning, lifecycle-script allowlists, provenance/attestation, OIDC trusted publishing, and commit-time secret scanning.",
+  "description": "Hardens JS/TS and Python package manager configs (pnpm, bun, npm, yarn, uv, pip) against supply chain attacks via minimum release age gates, lockfile commitment, exact version pinning, lifecycle-script allowlists, provenance attestation via OIDC Trusted Publishing, and commit-time secret scanning.",
   "author": {
     "name": "Madao",
     "email": "gn00678465@gmail.com"

@@ -84,10 +84,10 @@ See [`../publish-path-hardening.md`](../publish-path-hardening.md) for the full 
 ## Package Manager Pinning
 
 ```json
-"packageManager": "npm@10.5.0+sha512.<integrity-hash>"
+"packageManager": "npm@11.10.0+sha512.<integrity-hash>"
 ```
 
-Generate the hash with `corepack use npm@10.5.0`.
+Generate the hash with `corepack use npm@11.10.0`. **Pin npm ≥11.10** — earlier versions silently ignore `min-release-age`, defeating the core defense this file teaches.
 
 ## Verification
 

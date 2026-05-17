@@ -3,8 +3,8 @@
 **Open when:** configuring an automated dependency updater. Bots are the most common path for a malicious version to land in `main` because they auto-open PRs the day a release ships.
 
 **Source of truth (configs):**
-- [`examples/renovate/renovate.json`](../../examples/renovate/renovate.json) — Renovate config
-- [`examples/dependabot/dependabot.yml`](../../examples/dependabot/dependabot.yml) — Dependabot config (place at `.github/dependabot.yml`)
+- [`examples/renovate/renovate.json5`](../examples/renovate/renovate.json5) — Renovate config
+- [`examples/dependabot/dependabot.yml`](../examples/dependabot/dependabot.yml) — Dependabot config (place at `.github/dependabot.yml`)
 
 The bot's cooldown must **match or exceed** the package manager's cooldown. If pnpm refuses installs <7d but Renovate opens PRs on day 1, the PR sits in `main`-bound state until the cooldown expires anyway — and humans tend to merge the PR rather than investigate why the install fails.
 

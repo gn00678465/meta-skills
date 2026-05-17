@@ -14,7 +14,7 @@ This is the most common mistake. **pip ignores a `pip.conf` placed at the repo r
 1. `$PIP_CONFIG_FILE` (highest priority — point this at any file you want)
 2. Per-venv: `$VIRTUAL_ENV/pip.conf` (Linux/macOS) or `$VIRTUAL_ENV\pip.ini` (Windows)
 3. Per-user:
-   - Linux/macOS: `$XDG_CONFIG_HOME/pip/pip.conf`, `~/.config/pip/pip.conf`, or `~/.pip/pip.conf`
+   - Linux/macOS: `$XDG_CONFIG_HOME/pip/pip.conf` or `~/.config/pip/pip.conf` (canonical). `~/.pip/pip.conf` is the **legacy** location — pip still loads it if it exists, but new setups should use the XDG path
    - Windows: `%APPDATA%\pip\pip.ini` (**note the filename change**: `pip.ini`, not `pip.conf`)
 4. System: `/etc/pip.conf`, `/etc/xdg/pip/pip.conf`
 

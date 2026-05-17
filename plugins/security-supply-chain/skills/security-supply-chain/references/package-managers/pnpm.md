@@ -20,7 +20,9 @@ pnpm reads only **auth and registry** settings from `.npmrc`. Behavior settings 
 
 The npm `.npmrc` syntax works for npm but **silently no-ops for pnpm**. See [pnpm's .npmrc docs](https://pnpm.io/npmrc) for the exact keys pnpm honors.
 
-## Minimum Release Age (pnpm ≥10.16)
+## Minimum Release Age (pnpm ≥10.16 for this setting alone)
+
+> **Version floor for the full example file is pnpm ≥10.26** (the example also uses `blockExoticSubdeps` / `allowBuilds`, both ≥10.26). `minimumReleaseAge` alone works on ≥10.16; glob patterns in `minimumReleaseAgeExclude` need ≥10.17.
 
 Key line in [`pnpm-workspace.yaml`](../../examples/pnpm/pnpm-workspace.yaml):
 ```yaml
@@ -30,8 +32,6 @@ minimumReleaseAge: 10080   # MINUTES
 Unit is **minutes** — different from Bun (seconds) and npm (days). 10080 = 7 days. Lower bound 4320 (3 days) without a written reason.
 
 When pnpm refuses an install, the error reads `ERR_PNPM_PACKAGE_TOO_FRESH` (or names the offending package and its age). Read the error before bumping the threshold.
-
-**Glob patterns** in `minimumReleaseAgeExclude` require pnpm **≥10.17.0**; exact-name matching works on 10.16.
 
 ## `blockExoticSubdeps` (pnpm ≥10.26.0)
 
@@ -97,14 +97,19 @@ Generate the hash with `corepack use pnpm@10.26.0`. Pins pnpm itself — a compr
 
 ## Verification
 
+⚠️ **Do not use `pnpm config get <key>` for these.** `pnpm config` reads `.npmrc` (auth/registry) and the user/global config — it does **not** read `pnpm-workspace.yaml`, so it returns user-level or default values, not the workspace settings you just edited. False-pass guaranteed.
+
+Verify by reading the workspace file directly:
+
 ```bash
-pnpm config get minimumReleaseAge       # expect: 10080 (or your value)
-pnpm config get blockExoticSubdeps      # expect: true
-pnpm config get ignoreScripts           # expect: true (if kill-switch is on)
-pnpm config get savePrefix              # expect: ""
+# bash / zsh
+grep -E '^(minimumReleaseAge|blockExoticSubdeps|ignoreScripts|savePrefix|allowBuilds):' pnpm-workspace.yaml
+
+# PowerShell
+Select-String -Path pnpm-workspace.yaml -Pattern '^(minimumReleaseAge|blockExoticSubdeps|ignoreScripts|savePrefix|allowBuilds):'
 ```
 
-Functional test: pick a package version published in the last 24h and try `pnpm add <pkg>@<fresh-version>`. The error **must** contain `minimumReleaseAge` or `PACKAGE_TOO_FRESH`. Any other failure (404, 403, network) means the test is invalid — pick a different fresh package.
+Functional test (this is the real check): pick a package version published in the last 24h and try `pnpm add <pkg>@<fresh-version>`. The error **must** contain `minimumReleaseAge` or `PACKAGE_TOO_FRESH`. Any other failure (404, 403, network) means the test is invalid — pick a different fresh package.
 
 ## Upstream Docs
 
