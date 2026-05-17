@@ -13,3 +13,9 @@
 # Accepts: "7 days" | "P7D" (ISO 8601) | "2026-01-15T00:00:00Z" (absolute).
 # The "7d" shorthand is NOT documented — use "7 days" or "P7D".
 exclude-newer = "7 days"
+
+# Per-package override — bypass the cutoff for trusted internal packages
+# you publish yourself. Commented out by default; defeats the gate if you
+# put public packages here, so leave OFF unless you genuinely publish to
+# the listed names.
+# exclude-newer-package = ["my-internal-pkg"]

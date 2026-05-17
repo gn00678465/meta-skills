@@ -1,0 +1,28 @@
+{
+  "skill_name": "security-supply-chain",
+  "kind": "static-validation",
+  "rationale": "This skill ships docs + native config examples, not an LLM task chain. The classes of bug that previously slipped past 5 rounds of LLM review (broken `.lock\\.` regex, `pnpm config get` false-pass, `../../examples/` paths, `renovate.json` 404, `ignore-scripts=true` silent no-op in `.npmrc`, mismatched `actions/checkout@v6.0.0` SHA) are all deterministically catchable with static parsers, link walking, and cross-doc fact rules. These evals run in seconds and catch the same bug classes without waiting for a reviewer.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "examples-parse",
+      "script": "scripts/validate_examples.py",
+      "what_it_catches": "Schema-level corruption in any example file: invalid YAML / TOML / JSON5 / INI, GitHub Actions workflows missing `uses:` SHA pin format, Dependabot cooldown keys outside the documented schema. These are silent failures — the file 'looks fine' until a tool tries to load it.",
+      "exit_zero_means": "Every file under `examples/` parses with its native parser."
+    },
+    {
+      "id": 2,
+      "name": "links-resolve",
+      "script": "scripts/check_links.py",
+      "what_it_catches": "Broken relative links in `SKILL.md` and `references/*.md` — wrong directory depth (`../examples/` vs `../../examples/`), wrong filename (`renovate.json` vs `renovate.json5`), missing files. Caught in reviewer round 1, 3, 4 — would have been caught in seconds with this check.",
+      "exit_zero_means": "Every `[text](path)` link in repo markdown resolves to an existing file or directory."
+    },
+    {
+      "id": 3,
+      "name": "facts-consistent",
+      "script": "scripts/check_consistency.py",
+      "what_it_catches": "Version floors / numeric policy / config-key claims that appear in multiple files and must agree (pnpm 10.16/10.17/10.26 boundaries, Yarn 4.10 `npmMinimalAgeGate`, npm 11.10 `min-release-age` + matching `packageManager` pin, Dependabot patch floor vs SKILL.md global 3-day floor, `enableScripts` Yarn default). Caught in reviewer rounds 2/4 — pure cross-doc drift detection.",
+      "exit_zero_means": "All registered fact-claims agree across the files that reference them."
+    }
+  ]
+}
