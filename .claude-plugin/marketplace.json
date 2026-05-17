@@ -51,6 +51,20 @@
         "dependabot",
         "skills"
       ]
+    },
+    {
+      "name": "svelte-ai-infra",
+      "source": "./plugins/frontend-dev/svelte-ai-infra",
+      "description": "Bootstrap Svelte AI infrastructure into an existing Svelte/SvelteKit project: APM config, Svelte MCP server, agents, instructions, skills, and LSP settings — all wired in one shot for Claude Code, GitHub Copilot, and VS Code. Does not scaffold the Svelte app itself.",
+      "category": "frontend",
+      "tags": [
+        "svelte",
+        "sveltekit",
+        "apm",
+        "mcp",
+        "agent-assets",
+        "skills"
+      ]
     }
   ]
 }
