@@ -19,7 +19,7 @@ updates:
 
     # Group related updates into a single PR. Without grouping, Dependabot
     # opens one PR per dep — reviewers rubber-stamp, defeating the
-    # lockfile-diff review (../references/pre-merge-screening.md).
+    # lockfile-diff review (../../references/pre-merge-screening.md).
     groups:
       production-deps:
         dependency-type: "production"
@@ -30,8 +30,9 @@ updates:
 
     # Cooldown — wait N days before opening a version-update PR.
     # NOTE: applies to *version updates only*; security updates bypass.
-    # Lower bounds: default 3, major 7, minor 3, patch 1. Do not weaken
-    # without a written reason.
+    # Lower bound: 3 days for any tier (matches SKILL.md global floor —
+    # "Do not weaken below 3 days without a written reason"). Defaults
+    # below: default 7, major 14, minor 7, patch 3 — adjust within bounds.
     cooldown:
       default-days: 7
       semver-major-days: 14

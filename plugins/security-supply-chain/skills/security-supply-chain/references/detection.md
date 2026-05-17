@@ -6,11 +6,13 @@ Run the variant for the local shell. Apply hardening for **every** lockfile foun
 
 ## Bash / zsh (macOS, Linux, Git Bash)
 
+`|| true` keeps the snippet survivable under `set -e` — `ls` with all-missing files exits non-zero, which would abort a strict shell otherwise. `bun.lock` is the text-format lockfile (Bun ≥1.2 default); `bun.lockb` is the legacy binary form.
+
 ```bash
-ls package-lock.json pnpm-lock.yaml yarn.lock bun.lock bun.lockb 2>/dev/null
-grep -E '"packageManager"|"engines"' package.json 2>/dev/null
-ls uv.lock Pipfile.lock poetry.lock requirements*.txt pyproject.toml 2>/dev/null
-ls .github/dependabot.yml renovate.json .github/renovate.json 2>/dev/null
+ls package-lock.json pnpm-lock.yaml yarn.lock bun.lock bun.lockb 2>/dev/null || true
+grep -E '"packageManager"|"engines"' package.json 2>/dev/null || true
+ls uv.lock Pipfile.lock poetry.lock requirements*.txt pyproject.toml 2>/dev/null || true
+ls .github/dependabot.yml renovate.json .github/renovate.json 2>/dev/null || true
 ```
 
 ## PowerShell (Windows)

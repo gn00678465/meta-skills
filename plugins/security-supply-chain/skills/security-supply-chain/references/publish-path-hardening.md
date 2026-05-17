@@ -5,7 +5,7 @@
 The package install side and the package publish side are separate threat models. The age gate (rest of this skill) protects **consumers**. This file protects **maintainers** and the publish pipeline.
 
 **Source of truth (workflow):**
-- [`examples/github-actions/release-with-oidc.yml`](../../examples/github-actions/release-with-oidc.yml) — Trusted Publishing skeleton for npm via GitHub Actions OIDC
+- [`examples/github-actions/release-with-oidc.yml`](../examples/github-actions/release-with-oidc.yml) — Trusted Publishing skeleton for npm via GitHub Actions OIDC
 
 ## 1. Hardware-Key 2FA on Every Maintainer Account
 
@@ -37,7 +37,7 @@ On PyPI: use **project-scoped API tokens**, not the account token.
 
 OIDC-based "Trusted Publishing" replaces stored tokens with short-lived credentials minted per workflow run. npm requires npm 11.5.1+ and Node 22.14.0+; PyPI has supported this since 2023.
 
-The canonical workflow is in [`examples/github-actions/release-with-oidc.yml`](../../examples/github-actions/release-with-oidc.yml). The critical lines are:
+The canonical workflow is in [`examples/github-actions/release-with-oidc.yml`](../examples/github-actions/release-with-oidc.yml). The critical lines are:
 
 ```yaml
 permissions:
@@ -55,7 +55,7 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - run: npm ci
-      - run: npm publish --access public      # ⚠️ no --provenance flag
+      - run: npm publish --access public      # no --provenance needed — Trusted Publishing auto-generates it
 ```
 
 ### ⚠️ Three independent footguns
@@ -88,20 +88,27 @@ If you're publishing with a long-lived token (the old way), `--provenance` is re
 
 ## 4. Provenance & Attestations
 
+> **Read section 3 first.** If you're on Trusted Publishing (the recommended path), `npm publish` **without** `--provenance` is correct — Trusted Publishing auto-generates the attestation. The `--provenance` flag below applies **only** to the legacy long-lived-token publish path.
+
+### Legacy long-lived-token path (not Trusted Publishing)
+
 ```bash
-# Publisher side — emit a provenance statement
+# Publisher side — emit a provenance statement (only when using a stored token,
+# NOT under Trusted Publishing)
 npm publish --provenance
 ```
 
-This signs an attestation linking the artifact to:
+Whether emitted explicitly (legacy) or auto-generated (Trusted Publishing), the attestation signs:
 - the source commit SHA,
 - the GitHub Actions workflow run that built it,
 - the runner image,
 
 via Sigstore.
 
+### Consumer side (applies to both paths)
+
 ```bash
-# Consumer side — verify signatures across installed deps
+# Verify signatures across installed deps
 npm audit signatures
 ```
 

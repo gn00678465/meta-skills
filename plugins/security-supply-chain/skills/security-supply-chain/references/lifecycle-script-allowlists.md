@@ -32,7 +32,7 @@ Most projects need 3–5 of these, not all of them. **Audit your own deps with `
 
 ## Per-Ecosystem Configuration
 
-### pnpm ≥11 — `allowBuilds` in `pnpm-workspace.yaml`
+### pnpm ≥10.26 — `allowBuilds` in `pnpm-workspace.yaml`
 
 ```yaml
 # pnpm-workspace.yaml
@@ -42,14 +42,16 @@ allowBuilds:
   "@prisma/*": true
 ```
 
-Unreviewed builds auto-populate this file as placeholders during install. Approve interactively with `pnpm approve-builds`. See `package-managers/pnpm.md` for the v10 → v11 migration path.
+Unreviewed builds auto-populate this file as placeholders during install. Approve interactively with `pnpm approve-builds`. See `package-managers/pnpm.md` for the legacy `pnpm.onlyBuiltDependencies` form (pnpm <10.26) and the pnpm 11 cutover (legacy form removed entirely).
 
-**Kill-switch:**
+**Kill-switch (must go in `pnpm-workspace.yaml`, NOT `.npmrc`):**
 
-```ini
-# .npmrc
-ignore-scripts=true
+```yaml
+# pnpm-workspace.yaml
+ignoreScripts: true
 ```
+
+> ⚠️ **`ignore-scripts=true` in `.npmrc` is a silent no-op for pnpm.** pnpm reads only auth and registry settings from `.npmrc`; behavior settings must live in `pnpm-workspace.yaml` as `ignoreScripts` (camelCase). See [`package-managers/pnpm.md`](package-managers/pnpm.md) for the full `.npmrc` trap table.
 
 ### Bun — `trustedDependencies` in `package.json`
 
@@ -88,12 +90,16 @@ ignoreScripts = true
 
 Yarn 4 disables third-party `postinstall` by default. The `built: true` opt-in is the allowlist.
 
-**Kill-switch (workspace packages too):**
+**Explicit default (third-party only — workspaces still run their own scripts):**
 
 ```yaml
 # .yarnrc.yml
-enableScripts: false
+enableScripts: false   # already the Yarn 4 default; listed for visibility
 ```
+
+Per [Yarn docs](https://yarnpkg.com/configuration/yarnrc#enableScripts): `enableScripts: false` is the documented default and disables `postinstall` scripts only for **third-party** packages. Workspace packages always run their own postinstall scripts regardless — Yarn assumes workspace code is trusted.
+
+There is **no built-in kill-switch for workspace postinstall** in Yarn 4. If you need that, audit your workspaces directly or wrap CI with a script-skipping linker.
 
 ### npm — wrap with `@lavamoat/allow-scripts`
 

@@ -1,5 +1,9 @@
 .claude/settings.local.json
 
+# code-review loop state files (per-session, not part of source)
+.claude/code-review.last-report.md
+.claude/code-review.local.md
+
 # meta-ralph A/B harness output (regenerable per iteration)
 plugins/meta-ralph/skills/meta-ralph/evals/ab-results/
 

@@ -1,6 +1,6 @@
 ---
 name: security-supply-chain
-description: Harden JavaScript/TypeScript and Python package manager configs (pnpm, bun, npm, yarn, uv, pip) against supply chain attacks using minimum release age gates, lockfile commitment, exact version pinning, lifecycle-script allowlists, provenance/attestation, OIDC trusted publishing, and secret-scanning at commit time. Use when initializing projects, configuring dependency bots (Renovate, Dependabot), reviewing package manager config files (.npmrc, pnpm-workspace.yaml, bunfig.toml, .yarnrc.yml, pyproject.toml, dependabot.yml, renovate.json), evaluating whether a specific package@version is safe to install today, rotating publish tokens or migrating to Trusted Publishing, hardening a developer workstation, or responding to a published npm/PyPI compromise (TanStack-style hijacks, chalk/debug, qix, recent malicious-version incidents).
+description: Hardens npm/pnpm/bun/yarn/uv/pip configs against supply chain attacks via minimum release age gates, lifecycle-script allowlists, OIDC trusted publishing, and commit-time secret scanning. Use when auditing package manager configs, configuring dependency bots (Renovate/Dependabot), evaluating whether a fresh package version is safe to install, or responding to a published npm/PyPI compromise (chalk/debug, ua-parser-js, TanStack-style hijacks).
 ---
 
 # Security Supply Chain Hardening
@@ -29,7 +29,7 @@ The canonical, ready-to-merge configs live in `examples/`. **Merge their keys in
 
 | Tool | Example config (source of truth) | Commentary / footguns |
 |---|---|---|
-| pnpm ≥10.16 | [`examples/pnpm/pnpm-workspace.yaml`](examples/pnpm/pnpm-workspace.yaml), [`examples/pnpm/.npmrc`](examples/pnpm/.npmrc) | [`references/package-managers/pnpm.md`](references/package-managers/pnpm.md) |
+| pnpm ≥10.26 [^pnpm-floor] | [`examples/pnpm/pnpm-workspace.yaml`](examples/pnpm/pnpm-workspace.yaml), [`examples/pnpm/.npmrc`](examples/pnpm/.npmrc) | [`references/package-managers/pnpm.md`](references/package-managers/pnpm.md) |
 | bun ≥1.2 | [`examples/bun/bunfig.toml`](examples/bun/bunfig.toml) | [`references/package-managers/bun.md`](references/package-managers/bun.md) |
 | npm ≥11.10 | [`examples/npm/.npmrc`](examples/npm/.npmrc) | [`references/package-managers/npm.md`](references/package-managers/npm.md) |
 | yarn ≥4.10 | [`examples/yarn/.yarnrc.yml`](examples/yarn/.yarnrc.yml) | [`references/package-managers/yarn.md`](references/package-managers/yarn.md) |
@@ -43,6 +43,8 @@ The canonical, ready-to-merge configs live in `examples/`. **Merge their keys in
 Every example file has inline comments explaining each setting and warning about common footguns. Before merging, **read the corresponding commentary file** for the rationale.
 
 Bot configs use tiered variants: 3-day patch / 7-day minor / 14-day major. For the package manager itself, a single 7-day default is usually enough. Do not weaken below 3 days without a written reason.
+
+[^pnpm-floor]: `minimumReleaseAge` alone works on pnpm ≥10.16, but the example file also uses `minimumReleaseAgeExclude` glob patterns (≥10.17) and `blockExoticSubdeps` / `allowBuilds` (≥10.26), so the full file requires 10.26.
 
 ## Open When…
 
@@ -73,7 +75,7 @@ Bot configs use tiered variants: 3-day patch / 7-day minor / 14-day major. For t
 Quick smoke test after applying any hardening. **Full audit checklist:** [`references/verification.md`](references/verification.md).
 
 - [ ] **Age-gate functional test** — try to install a package version published in the last 24h; the failure message must mention `minimumReleaseAge` / `min-release-age` / `npmMinimalAgeGate` / `uploaded-prior-to` / `PACKAGE_TOO_FRESH`. Any other error (404, auth, network) means the test is invalid.
-- [ ] Lockfile is committed (`git ls-files | grep -E 'lock(file)?$|\.lock\.|\.lockb$'`).
+- [ ] Lockfile is committed (`git ls-files | grep -E '(^|/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lock|bun\.lockb|uv\.lock|Pipfile\.lock|poetry\.lock|Gemfile\.lock|composer\.lock|Cargo\.lock|go\.sum)$'`).
 - [ ] CI uses a frozen install (`npm ci` / `pnpm install --frozen-lockfile` / `bun install --frozen-lockfile` / `yarn install --immutable` / `uv sync --locked`).
 - [ ] `.npmrc` in the repo contains no `_authToken`, `_auth`, `_password`, or `email` lines.
 - [ ] Pre-commit secret scanner (gitleaks/trufflehog) installed.
@@ -82,4 +84,4 @@ Quick smoke test after applying any hardening. **Full audit checklist:** [`refer
 
 Upstream docs are linked from each `references/<topic>.md` file.
 
-External source for the cross-ecosystem matrix: Daniel Akash, [The Simplest Supply Chain Defense](https://daniakash.com/posts/simplest-supply-chain-defense/).
+External source for the cross-ecosystem matrix: Dani Akash, [The Simplest Supply Chain Defense](https://daniakash.com/posts/simplest-supply-chain-defense/).
