@@ -48,8 +48,8 @@ author: <author>              # ← 改為作者名稱
 # 並把 dependencies 內的 __UPSTREAM_SHA__ 換成 .upstream-ref 內容：
 dependencies:
   apm:
-  - sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte
-                          ↑ 這個 placeholder 也要替換
+  - sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__
+                                               ↑ 這個 placeholder 也要替換
 ```
 
 讀取 SHA：

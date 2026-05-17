@@ -76,7 +76,7 @@ plugins/frontend-dev/svelte-ai-infra/skills/svelte-ai-infra/
 ```yaml
 dependencies:
   apm:
-  - sveltejs/ai-tools#__UPSTREAM_SHA__/plugins/claude/svelte
+  - sveltejs/ai-tools/plugins/claude/svelte#__UPSTREAM_SHA__
 ```
 
 Step 1 placeholder 替換從 3 個變 4 個，多一條：
